@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createCalBooking } from "@/lib/cal";
 // import { verifyRecaptchaToken } from "@/lib/recaptcha";
 import { createServiceClient } from "@/lib/supabase/service";
+import { invalidateCalSlotCache } from "@/lib/calSlotCache";
+import { shouldApplyStatus } from "@/lib/bookingStatus";
 
 export async function POST(req: NextRequest) {
   let body: { slotTime?: string; recaptchaToken?: string; patientId?: string; timeZone?: string };
@@ -31,9 +33,8 @@ export async function POST(req: NextRequest) {
     }
 
     const resolvedTimeZone =
-      typeof timeZone === "string" && timeZone.trim()
-        ? timeZone.trim()
-        : Intl.DateTimeFormat().resolvedOptions().timeZone;
+      typeof timeZone === "string" && timeZone.trim() ? timeZone.trim() : "America/Denver";
+
     const calResponse = await createCalBooking({
       start: slotTime,
       name: mh.patient_name,
@@ -51,23 +52,35 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Cal booking response missing booking identifiers" }, { status: 502 });
     }
 
-    await supabase.from("bookings").upsert(
-      {
-        patient_id: patientId,
-        cal_booking_id: calId,
-        cal_booking_uid: calUid,
-        status: "pending",
-        title: booking?.title ?? null,
-        start_time: booking?.start ?? slotTime,
-        end_time: booking?.end ?? slotTime,
-        timezone: resolvedTimeZone,
-        attendee_name: mh.patient_name,
-        attendee_email: mh.email,
-        cal_raw_payload: calResponse as object,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "cal_booking_id" }
-    );
+    const { data: existing } = await supabase
+      .from("bookings")
+      .select("status")
+      .eq("cal_booking_id", calId)
+      .maybeSingle();
+
+    // If the webhook already delivered `confirmed` or `cancelled` before
+    // this synchronous write completes, don't regress the status.
+    const applyStatus = shouldApplyStatus(existing?.status, "pending");
+
+    const base = {
+      patient_id: patientId,
+      cal_booking_id: calId,
+      cal_booking_uid: calUid,
+      title: booking?.title ?? null,
+      start_time: booking?.start ?? slotTime,
+      end_time: booking?.end ?? slotTime,
+      timezone: resolvedTimeZone,
+      attendee_name: mh.patient_name,
+      attendee_email: mh.email,
+      cal_raw_payload: calResponse as object,
+      updated_at: new Date().toISOString(),
+    };
+
+    await supabase
+      .from("bookings")
+      .upsert(applyStatus ? { ...base, status: "pending" } : base, { onConflict: "cal_booking_id" });
+
+    invalidateCalSlotCache();
 
     return NextResponse.json({
       ok: true,

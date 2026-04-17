@@ -1,8 +1,8 @@
 "use client";
 
-import { parseISO, format } from "date-fns";
 import { Moon, Sun, Sunrise } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { clinicHour, formatTimeInClinic } from "@/lib/time";
 
 type Props = {
   slots: string[];
@@ -25,7 +25,7 @@ export function TimeSlotPicker({ slots, selected, onSelect, disabledSlots }: Pro
   if (!slots.length) return <p className="text-sm text-muted-foreground">No times available.</p>;
 
   const grouped = slots.reduce<Record<string, string[]>>((acc, slot) => {
-    const h = parseISO(slot).getHours();
+    const h = clinicHour(slot);
     const label = groupLabel(h);
     if (!acc[label]) acc[label] = [];
     acc[label].push(slot);
@@ -41,7 +41,10 @@ export function TimeSlotPicker({ slots, selected, onSelect, disabledSlots }: Pro
 
   return (
     <div className="space-y-5">
-      <h2 className="text-lg font-semibold text-[#16212d]">Available Slots</h2>
+      <div className="flex items-baseline justify-between gap-3">
+        <h2 className="text-lg font-semibold text-[#16212d]">Available Slots</h2>
+        <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#8a96a2]">Mountain Time</span>
+      </div>
       {groups.map(([label, group]) => (
         <div key={label} className="space-y-2.5">
           <p className="inline-flex items-center gap-2 text-[12px] font-bold uppercase tracking-[0.16em] text-[#8a96a2]">
@@ -71,7 +74,7 @@ export function TimeSlotPicker({ slots, selected, onSelect, disabledSlots }: Pro
                       "cursor-not-allowed border-[#e8edf2] bg-[#f3f6f9] text-[#b0bcc6] line-through decoration-[#b0bcc6]"
                   )}
                 >
-                  {format(parseISO(slot), "p")}
+                  {formatTimeInClinic(slot)}
                 </button>
               );
             })}

@@ -3,9 +3,9 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { format, parseISO } from "date-fns";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { formatLongDateTimeInClinic } from "@/lib/time";
 
 type Summary = { start: string; end: string | null; name: string; email: string };
 
@@ -39,7 +39,7 @@ export default function ConfirmationPage() {
         </CardHeader>
         <CardContent className="space-y-3 text-sm">
           <p>
-            <span className="text-muted-foreground">When:</span> {format(parseISO(summary.start), "PPpp")}
+            <span className="text-muted-foreground">When:</span> {formatLongDateTimeInClinic(summary.start)}
           </p>
           <p>
             <span className="text-muted-foreground">Name:</span> {summary.name}

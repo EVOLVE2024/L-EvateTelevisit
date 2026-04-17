@@ -4,6 +4,13 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { format, parseISO, formatDistanceToNow } from "date-fns";
 import {
+  CLINIC_TIMEZONE_ABBR,
+  formatDayOfMonthInClinic,
+  formatMediumDateTimeInClinic,
+  formatMonthShortInClinic,
+  formatTimeInClinic,
+} from "@/lib/time";
+import {
   Activity,
   ArrowUpRight,
   CalendarCheck,
@@ -330,17 +337,17 @@ export default function AdminDashboardPage() {
                 <div className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">
                   <div className="text-center leading-tight">
                     <div className="text-[10px] font-medium uppercase tracking-wider">
-                      {format(parseISO(b.start_time), "MMM")}
+                      {formatMonthShortInClinic(b.start_time)}
                     </div>
                     <div className="font-display text-lg font-semibold">
-                      {format(parseISO(b.start_time), "d")}
+                      {formatDayOfMonthInClinic(b.start_time)}
                     </div>
                   </div>
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-medium">{b.attendee_name ?? "Unnamed patient"}</p>
                   <p className="truncate text-xs text-muted-foreground">
-                    {format(parseISO(b.start_time), "p")} — {format(parseISO(b.end_time), "p")}
+                    {formatTimeInClinic(b.start_time)} — {formatTimeInClinic(b.end_time)} {CLINIC_TIMEZONE_ABBR}
                     {b.attendee_email ? ` · ${b.attendee_email}` : ""}
                   </p>
                 </div>
@@ -384,7 +391,7 @@ export default function AdminDashboardPage() {
                   </p>
                   <p className="truncate text-xs text-muted-foreground">
                     Booked {formatDistanceToNow(parseISO(b.created_at), { addSuffix: true })} ·{" "}
-                    {format(parseISO(b.start_time), "PPp")}
+                    {formatMediumDateTimeInClinic(b.start_time)} {CLINIC_TIMEZONE_ABBR}
                   </p>
                 </div>
               </li>

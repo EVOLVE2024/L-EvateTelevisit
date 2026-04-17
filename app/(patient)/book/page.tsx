@@ -3,13 +3,14 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { endOfMonth, format, parseISO, startOfMonth } from "date-fns";
-import { CheckCircle2, Clock, Lock, Video } from "lucide-react";
+import { endOfMonth, format, startOfMonth } from "date-fns";
+import { clinicDateKey, formatDateTimeInClinic } from "@/lib/time";
+import { CheckCircle2, Clock, Globe2, Lock, Video } from "lucide-react";
 import { getLocalState, setLocalState } from "@/lib/onboarding";
 import { CalendarWidget } from "@/components/booking/CalendarWidget";
 import { BookingConfirmModal } from "@/components/booking/BookingConfirmModal";
 import { TimeSlotPicker } from "@/components/booking/TimeSlotPicker";
-import { Skeleton } from "@/components/ui/skeleton";
+import { TimeSlotsSkeleton } from "@/components/booking/BookingSkeletons";
 import { Button } from "@/components/ui/button";
 
 const practitionerName =
@@ -46,48 +47,54 @@ export default function BookPage() {
 
   const daySlots = selectedDate ? slotsByDate[selectedDate] ?? [] : [];
 
-  function getMonthCacheKey(m: Date) {
-    return `levate_slots_${format(m, "yyyy-MM")}`;
-  }
+  const getMonthCacheKey = useCallback(
+    (m: Date, pid: string | null) => `levate_slots_${format(m, "yyyy-MM")}_${pid ?? "anon"}`,
+    []
+  );
 
-  const loadMonth = useCallback(async (m: Date) => {
-    const cacheKey = getMonthCacheKey(m);
-    let cachedMonthSlots: Record<string, string[]> | null = null;
-    try {
-      const raw = sessionStorage.getItem(cacheKey);
-      if (raw) {
-        cachedMonthSlots = JSON.parse(raw) as Record<string, string[]>;
-        setSlotsByDate(cachedMonthSlots);
+  const loadMonth = useCallback(
+    async (m: Date, pid: string | null) => {
+      const cacheKey = getMonthCacheKey(m, pid);
+      let cachedMonthSlots: Record<string, string[]> | null = null;
+      try {
+        const raw = sessionStorage.getItem(cacheKey);
+        if (raw) {
+          cachedMonthSlots = JSON.parse(raw) as Record<string, string[]>;
+          setSlotsByDate(cachedMonthSlots);
+        }
+      } catch {
+        cachedMonthSlots = null;
       }
-    } catch {
-      cachedMonthSlots = null;
-    }
 
-    if (cachedMonthSlots) {
-      setLoading(false);
-      setRefreshing(true);
-    } else {
-      setLoading(true);
-      setRefreshing(false);
-    }
-    try {
-      const start = startOfMonth(m).toISOString();
-      const end = endOfMonth(m).toISOString();
-      const res = await fetch(`/api/cal/slots?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`);
-      const data = await res.json();
-      if (!res.ok || data.warning) throw new Error(data.error ?? data.warning ?? "Failed to load");
-      const next = (data.slotsByDate ?? {}) as Record<string, string[]>;
-      setSlotsByDate(next);
-      sessionStorage.setItem(cacheKey, JSON.stringify(next));
-    } catch {
-      if (!cachedMonthSlots) {
-        setSlotsByDate({});
+      if (cachedMonthSlots) {
+        setLoading(false);
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+        setRefreshing(false);
       }
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, []);
+      try {
+        const start = startOfMonth(m).toISOString();
+        const end = endOfMonth(m).toISOString();
+        const qs = new URLSearchParams({ start, end });
+        if (pid) qs.set("patientId", pid);
+        const res = await fetch(`/api/cal/slots?${qs.toString()}`);
+        const data = await res.json();
+        if (!res.ok || data.warning) throw new Error(data.error ?? data.warning ?? "Failed to load");
+        const next = (data.slotsByDate ?? {}) as Record<string, string[]>;
+        setSlotsByDate(next);
+        sessionStorage.setItem(cacheKey, JSON.stringify(next));
+      } catch {
+        if (!cachedMonthSlots) {
+          setSlotsByDate({});
+        }
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    },
+    [getMonthCacheKey]
+  );
 
   useEffect(() => {
     const s = getLocalState();
@@ -115,14 +122,41 @@ export default function BookPage() {
   }, [router]);
 
   useEffect(() => {
-    void loadMonth(month);
-  }, [month, loadMonth]);
+    void loadMonth(month, patientId);
+  }, [month, patientId, loadMonth]);
+
+  const defaultDateForMonth = useCallback((m: Date) => {
+    const todayKey = clinicDateKey(new Date());
+    const firstKey = `${format(m, "yyyy-MM")}-01`;
+    if (firstKey < todayKey) return todayKey;
+    const dow = new Date(`${firstKey}T00:00:00Z`).getUTCDay();
+    const shift = dow === 0 ? 1 : dow === 6 ? 2 : 0;
+    if (shift === 0) return firstKey;
+    const d = new Date(`${firstKey}T00:00:00Z`);
+    d.setUTCDate(d.getUTCDate() + shift);
+    return d.toISOString().slice(0, 10);
+  }, []);
+
+  useEffect(() => {
+    if (selectedDate) return;
+    setSelectedDate(defaultDateForMonth(month));
+  }, [month, selectedDate, defaultDateForMonth]);
+
+  const handleMonthChange = useCallback(
+    (m: Date) => {
+      setMonth(m);
+      setSelectedDate(defaultDateForMonth(m));
+      setSelectedSlot(null);
+    },
+    [defaultDateForMonth]
+  );
 
   const selectionSummary =
     selectedSlot != null
-      ? `Selected: ${format(parseISO(selectedSlot), "EEEE, MMM d 'at' p")}`
+      ? `Selected: ${formatDateTimeInClinic(selectedSlot)} (MT)`
       : "Select a date and time to continue.";
-  const hasMonthData = Object.keys(slotsByDate).length > 0;
+  const showCalendarSkeleton = loading || refreshing;
+  const showSlotsSkeleton = loading || refreshing;
 
   return (
     <div className="text-[#1a1f24]">
@@ -198,38 +232,35 @@ export default function BookPage() {
                 <span className="inline-flex items-center gap-1 rounded-xl bg-[#f1f6fb] px-3 py-2 text-sm font-medium text-[#425264]">
                   <Video className="h-4 w-4 text-[#6f8297]" /> Televisit - High Definition
                 </span>
+                <span className="inline-flex items-center gap-1 rounded-xl bg-[#eef5ff] px-3 py-2 text-sm font-medium text-[#0a51b7]">
+                  <Globe2 className="h-4 w-4" /> Times shown in Mountain Time (MT)
+                </span>
               </div>
             </div>
           </div>
 
           <div className="grid lg:grid-cols-2">
             <div className="bg-[#f4f8fc] px-5 py-8 sm:px-8">
-              {loading && !hasMonthData ? (
-                <Skeleton className="h-[360px] w-full rounded-2xl" />
-              ) : (
-                <div className="space-y-2">
-                  {refreshing && <p className="text-xs font-medium text-[#708090]">Refreshing available times…</p>}
-                  <CalendarWidget
-                    embedded
-                    showTitle={false}
-                    month={month}
-                    onMonthChange={setMonth}
-                    selectedDate={selectedDate}
-                    onSelectDate={(d) => {
-                      setSelectedDate(d);
-                      setSelectedSlot(null);
-                    }}
-                    availableDates={availableDates}
-                    isLoading={loading}
-                  />
-                </div>
-              )}
+              <CalendarWidget
+                embedded
+                showTitle={false}
+                month={month}
+                onMonthChange={handleMonthChange}
+                selectedDate={selectedDate}
+                onSelectDate={(d) => {
+                  setSelectedDate(d);
+                  setSelectedSlot(null);
+                }}
+                availableDates={availableDates}
+                isLoading={showCalendarSkeleton}
+              />
             </div>
             <div className="border-t border-[#e8edf4] bg-white px-5 py-8 sm:px-8 lg:border-l lg:border-t-0">
-              {!selectedDate && (
+              {showSlotsSkeleton ? (
+                <TimeSlotsSkeleton />
+              ) : !selectedDate ? (
                 <p className="text-sm text-[#5c6a76]">Choose an available date to unlock open appointment slots.</p>
-              )}
-              {selectedDate && (
+              ) : (
                 <TimeSlotPicker slots={daySlots} selected={selectedSlot} onSelect={(slot) => setSelectedSlot(slot)} />
               )}
             </div>
@@ -297,7 +328,17 @@ export default function BookPage() {
           patientEmail={patientEmail}
           onBooked={(summary) => {
             sessionStorage.setItem("levate_last_booking", JSON.stringify(summary));
+            for (const key of Object.keys(sessionStorage)) {
+              if (key.startsWith("levate_slots_")) sessionStorage.removeItem(key);
+            }
             router.push("/confirmation");
+          }}
+          onSlotUnavailable={() => {
+            for (const key of Object.keys(sessionStorage)) {
+              if (key.startsWith("levate_slots_")) sessionStorage.removeItem(key);
+            }
+            setSelectedSlot(null);
+            void loadMonth(month, patientId);
           }}
         />
       )}

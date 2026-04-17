@@ -14,7 +14,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { format, parseISO } from "date-fns";
+import { formatLongDateTimeInClinic } from "@/lib/time";
 
 type Props = {
   open: boolean;
@@ -24,6 +24,7 @@ type Props = {
   patientName: string;
   patientEmail: string;
   onBooked: (summary: { start: string; end: string | null; name: string; email: string }) => void;
+  onSlotUnavailable?: () => void;
 };
 
 export function BookingConfirmModal({
@@ -34,6 +35,7 @@ export function BookingConfirmModal({
   patientName,
   patientEmail,
   onBooked,
+  onSlotUnavailable,
 }: Props) {
   const [token] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -57,12 +59,20 @@ export function BookingConfirmModal({
           slotTime: slotIso,
           recaptchaToken: token,
           patientId,
-          timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          timeZone: "America/Denver",
         }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        toast.error(typeof data.error === "string" ? data.error : "Booking failed");
+        const rawError = typeof data.error === "string" ? data.error : "Booking failed";
+        const isUnavailable = /already has booking|not available|no longer available/i.test(rawError);
+        if (isUnavailable) {
+          toast.error("That time is no longer available. Please pick another slot.");
+          onOpenChange(false);
+          onSlotUnavailable?.();
+        } else {
+          toast.error(rawError);
+        }
         // Human verification is temporarily disabled.
         // recaptchaRef.current?.reset();
         // setToken(null);
@@ -79,7 +89,7 @@ export function BookingConfirmModal({
     }
   }
 
-  const when = slotIso ? format(parseISO(slotIso), "PPpp") : "";
+  const when = slotIso ? formatLongDateTimeInClinic(slotIso) : "";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -112,7 +122,7 @@ export function BookingConfirmModal({
             Cancel
           </Button>
           <Button type="button" disabled={submitting} onClick={() => void confirm()}>
-            {submitting ? "Booking…" : "Confirm booking"}
+            {submitting ? "Booking…" : "Confirm bookings"}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -3,6 +3,14 @@
 import { useEffect, useState } from "react";
 import { format, parseISO, isBefore } from "date-fns";
 import {
+  CLINIC_TIMEZONE_ABBR,
+  formatDayOfMonthInClinic,
+  formatLongDateTimeInClinic,
+  formatMediumDateTimeInClinic,
+  formatMonthShortInClinic,
+  formatTimeInClinic,
+} from "@/lib/time";
+import {
   Calendar,
   CheckCircle2,
   Clock,
@@ -330,7 +338,7 @@ export function PatientDetailModal({
                       Signed by <span className="font-medium text-foreground">{consent.full_name ?? "—"}</span>
                     </span>
                     <span>
-                      {consent.signed_at ? format(parseISO(consent.signed_at), "PPpp") : "—"}
+                      {consent.signed_at ? formatLongDateTimeInClinic(consent.signed_at) : "—"}
                     </span>
                   </div>
                 </div>
@@ -396,10 +404,10 @@ function BookingGroup({
             <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">
               <div className="text-center leading-tight">
                 <div className="text-[9px] font-medium uppercase tracking-wider">
-                  {format(parseISO(b.start_time), "MMM")}
+                  {formatMonthShortInClinic(b.start_time)}
                 </div>
                 <div className="font-display text-base font-semibold">
-                  {format(parseISO(b.start_time), "d")}
+                  {formatDayOfMonthInClinic(b.start_time)}
                 </div>
               </div>
             </div>
@@ -409,8 +417,7 @@ function BookingGroup({
               </p>
               <p className="mt-0.5 inline-flex items-center gap-1.5 text-xs text-muted-foreground">
                 <Clock className="h-3 w-3" />
-                {format(parseISO(b.start_time), "PPp")} — {format(parseISO(b.end_time), "p")}
-                {b.timezone ? ` · ${b.timezone}` : ""}
+                {formatMediumDateTimeInClinic(b.start_time)} — {formatTimeInClinic(b.end_time)} {CLINIC_TIMEZONE_ABBR}
               </p>
             </div>
             <div className="flex items-center gap-3">

@@ -48,6 +48,37 @@ async function fetchJsonOverIpv4(url: string, headers: Record<string, string>): 
   });
 }
 
+async function requestOverIpv4(
+  url: string,
+  method: string,
+  headers: Record<string, string>,
+  body: string
+): Promise<{ status: number; text: string }> {
+  return new Promise((resolve, reject) => {
+    const req = https.request(
+      url,
+      {
+        method,
+        headers: { ...headers, "Content-Length": Buffer.byteLength(body).toString() },
+        agent: new https.Agent({ family: 4 }),
+      },
+      (res) => {
+        let chunks = "";
+        res.setEncoding("utf8");
+        res.on("data", (chunk) => {
+          chunks += chunk;
+        });
+        res.on("end", () => {
+          resolve({ status: res.statusCode ?? 500, text: chunks });
+        });
+      }
+    );
+    req.on("error", (error) => reject(error));
+    req.write(body);
+    req.end();
+  });
+}
+
 export async function fetchCalSlotsRange(
   startIso: string,
   endIso: string
@@ -132,40 +163,93 @@ export async function createCalBooking(input: CalBookingInput) {
       supabase_id: input.patientId,
     },
   };
-  const res = await fetch(`${CAL_API_BASE}/v2/bookings`, {
-    method: "POST",
+  const payloadBody = JSON.stringify(payload);
+  console.log("[cal-booking] → POST /v2/bookings payload:", payloadBody);
+
+  const { status, text: rawText } = await requestOverIpv4(
+    `${CAL_API_BASE}/v2/bookings`,
+    "POST",
     headers,
-    body: JSON.stringify(payload),
-    cache: "no-store",
-  });
-  const body = await res.json().catch(() => ({}));
-  if (!res.ok) {
+    payloadBody
+  );
+
+  let body: unknown = {};
+  try {
+    body = rawText ? JSON.parse(rawText) : {};
+  } catch {
+    body = { raw: rawText };
+  }
+  if (status < 200 || status >= 300) {
+    console.error(`[cal-booking] ← Cal.com ${status} response:`, rawText);
     const bodyRecord = typeof body === "object" && body ? (body as Record<string, unknown>) : null;
     const nestedError =
       bodyRecord && typeof bodyRecord.error === "object" && bodyRecord.error
         ? (bodyRecord.error as Record<string, unknown>)
         : null;
-    throw new Error(
+    const message =
       (nestedError && typeof nestedError.message === "string" && nestedError.message) ||
-        (bodyRecord && typeof bodyRecord.message === "string" && bodyRecord.message) ||
-        (bodyRecord && typeof bodyRecord.error === "string" && bodyRecord.error) ||
-        `Cal booking error ${res.status}`
-    );
+      (bodyRecord && typeof bodyRecord.message === "string" && bodyRecord.message) ||
+      (bodyRecord && typeof bodyRecord.error === "string" && bodyRecord.error) ||
+      `Cal booking error ${status}`;
+    throw new Error(`${message} (status ${status}): ${rawText.slice(0, 600)}`);
   }
   return body as Record<string, unknown>;
 }
 
-export async function cancelCalBooking(uid: string, reason?: string) {
+export type CalRemoteBooking = {
+  id: string | number | null;
+  uid: string | null;
+  status: string | null;
+  start: string | null;
+  end: string | null;
+  title: string | null;
+  timeZone: string | null;
+  raw: Record<string, unknown>;
+};
+
+/**
+ * Fetches a single booking from Cal.com. Used by the reconciliation cron
+ * as the authoritative source of truth. Returns `null` if the booking no
+ * longer exists remotely (HTTP 404).
+ */
+export async function fetchCalBooking(uid: string): Promise<CalRemoteBooking | null> {
   const headers = calHeaders("2026-02-25");
   if (!headers) throw new Error("Cal.com is not configured");
-  const res = await fetch(`${CAL_API_BASE}/v2/bookings/${encodeURIComponent(uid)}/cancel`, {
-    method: "POST",
-    headers,
-    body: JSON.stringify({ cancellationReason: reason ?? "Cancelled by patient" }),
-    cache: "no-store",
-  });
-  if (!res.ok && res.status !== 204) {
-    const text = await res.text();
-    throw new Error(`Cal cancel error ${res.status}: ${text}`);
+  const url = `${CAL_API_BASE}/v2/bookings/${encodeURIComponent(uid)}`;
+  let status = 0;
+  let text = "";
+  try {
+    const res = await fetch(url, { headers, cache: "no-store" });
+    status = res.status;
+    text = await res.text();
+  } catch {
+    const alt = await requestOverIpv4(url, "GET", headers, "");
+    status = alt.status;
+    text = alt.text;
   }
+  if (status === 404) return null;
+  if (status < 200 || status >= 300) {
+    throw new Error(`Cal fetch booking error ${status}: ${text.slice(0, 400)}`);
+  }
+  let parsed: unknown = {};
+  try {
+    parsed = text ? JSON.parse(text) : {};
+  } catch {
+    throw new Error(`Cal fetch booking returned invalid JSON: ${text.slice(0, 200)}`);
+  }
+  const root = (parsed && typeof parsed === "object" ? (parsed as Record<string, unknown>) : {}) as Record<string, unknown>;
+  const data = (root.data && typeof root.data === "object" ? (root.data as Record<string, unknown>) : root) as Record<string, unknown>;
+  return {
+    id: (data.id as string | number | undefined) ?? null,
+    uid: (data.uid as string | undefined) ?? null,
+    status: (data.status as string | undefined) ?? null,
+    start: (data.start as string | undefined) ?? (data.startTime as string | undefined) ?? null,
+    end: (data.end as string | undefined) ?? (data.endTime as string | undefined) ?? null,
+    title: (data.title as string | undefined) ?? null,
+    timeZone:
+      (data.timeZone as string | undefined) ??
+      ((data.attendees as { timeZone?: string }[] | undefined)?.[0]?.timeZone ?? null),
+    raw: data,
+  };
 }
+

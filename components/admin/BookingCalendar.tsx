@@ -8,11 +8,14 @@ import {
   endOfWeek,
   format,
   isSameDay,
-  isSameMonth,
-  parseISO,
   startOfMonth,
   startOfWeek,
 } from "date-fns";
+import {
+  clinicDateKey,
+  formatMediumDateTimeInClinic,
+  formatTimeInClinic,
+} from "@/lib/time";
 import {
   CalendarDays,
   ChevronLeft,
@@ -107,14 +110,14 @@ export function BookingCalendar() {
   const byDay = useMemo(() => {
     const map = new Map<string, CalendarBooking[]>();
     (data?.bookings ?? []).forEach((b) => {
-      const key = format(parseISO(b.start_time), "yyyy-MM-dd");
+      const key = clinicDateKey(b.start_time);
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(b);
     });
     map.forEach((list) => {
       list.sort(
         (a: CalendarBooking, b: CalendarBooking) =>
-          parseISO(a.start_time).getTime() - parseISO(b.start_time).getTime()
+          new Date(a.start_time).getTime() - new Date(b.start_time).getTime()
       );
     });
     return map;
@@ -122,9 +125,9 @@ export function BookingCalendar() {
 
   const monthCountsByStatus = useMemo(() => {
     const counts = { confirmed: 0, pending: 0, cancelled: 0, other: 0, total: 0 };
+    const monthKey = format(month, "yyyy-MM");
     (data?.bookings ?? []).forEach((b) => {
-      const d = parseISO(b.start_time);
-      if (!isSameMonth(d, month)) return;
+      if (!clinicDateKey(b.start_time).startsWith(monthKey)) return;
       counts.total += 1;
       if (b.status === "confirmed") counts.confirmed += 1;
       else if (b.status === "pending") counts.pending += 1;
@@ -263,7 +266,7 @@ function LegendPill({ color, label }: { color: string; label: string }) {
 }
 
 function BookingChip({ booking }: { booking: CalendarBooking }) {
-  const time = format(parseISO(booking.start_time), "p");
+  const time = formatTimeInClinic(booking.start_time);
   const name = booking.patient.name ?? booking.attendee_name ?? "Unnamed";
 
   return (
@@ -297,7 +300,7 @@ function BookingChip({ booking }: { booking: CalendarBooking }) {
         <div className="mt-2 space-y-1 text-xs text-muted-foreground">
           <p className="inline-flex items-center gap-1.5">
             <Clock className="h-3 w-3" />
-            {format(parseISO(booking.start_time), "PPp")} — {format(parseISO(booking.end_time), "p")}
+            {formatMediumDateTimeInClinic(booking.start_time)} — {formatTimeInClinic(booking.end_time)} MT
           </p>
           {booking.patient.email && (
             <p className="inline-flex items-center gap-1.5">
