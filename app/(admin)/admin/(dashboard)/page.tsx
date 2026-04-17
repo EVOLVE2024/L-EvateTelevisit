@@ -264,7 +264,7 @@ export default function AdminDashboardPage() {
               Facility Overview
             </p>
             <h1 className="mt-2 font-display text-3xl font-semibold tracking-tight sm:text-4xl">
-              Welcome back, Dr. Aris
+              Welcome back
             </h1>
             <p className="mt-2 max-w-xl text-sm text-muted-foreground">
               Here&apos;s what&apos;s happening across your televisit practice today, this week, and this month.

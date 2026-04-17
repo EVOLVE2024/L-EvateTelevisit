@@ -69,7 +69,7 @@ const sections: Section[] = [
 export default function ConsentFormsPage() {
   return (
     <div className="-my-8 min-h-[calc(100vh-220px)] w-screen bg-[#f4f6f9] pb-16 pt-8 [margin-inline:calc(50%-50vw)]">
-      <div className="mx-auto max-w-3xl px-4 sm:px-6">
+      <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
         <div className="mb-8">
           <Link
             href="/"

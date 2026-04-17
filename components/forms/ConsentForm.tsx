@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useForm, Controller } from "react-hook-form";
@@ -75,6 +75,7 @@ const consentFields: ConsentItem[] = [
 export function ConsentForm() {
   const router = useRouter();
   const [serverMedical, setServerMedical] = useState<MedicalHistoryFormValues | null | undefined>(undefined);
+  const submittedRef = useRef(false);
 
   const form = useForm<ConsentFormValues>({
     resolver: zodResolver(consentSchema),
@@ -115,6 +116,15 @@ export function ConsentForm() {
     };
   }, []);
 
+  useEffect(() => {
+    if (submittedRef.current) return;
+    if (medicalDataMissing) {
+      toast.error("Please complete medical history first.");
+      router.replace("/onboarding/medical-history");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- react once when detection completes
+  }, [medicalDataMissing]);
+
   async function onSubmit(values: ConsentFormValues) {
     const state = getLocalState();
     if (!state?.patientId) {
@@ -154,6 +164,7 @@ export function ConsentForm() {
       toast.error(data.error ?? "Could not save intake");
       return;
     }
+    submittedRef.current = true;
     setLocalState({
       patientId: state.patientId,
       patientName: state.patientName ?? medical.patient_name,
@@ -241,8 +252,8 @@ export function ConsentForm() {
               Back to medical history
             </Button>
             {medicalDataMissing ? (
-              <p className="text-center text-sm text-destructive">
-                Medical history was not found. Use &quot;Back to medical history&quot; to continue.
+              <p className="text-center text-sm text-muted-foreground">
+                Redirecting to medical history…
               </p>
             ) : null}
             <Button
