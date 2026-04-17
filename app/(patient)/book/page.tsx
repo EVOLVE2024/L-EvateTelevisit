@@ -13,6 +13,7 @@ import { TimeSlotPicker } from "@/components/booking/TimeSlotPicker";
 import { TimeSlotsSkeleton } from "@/components/booking/BookingSkeletons";
 import { BrandLoader } from "@/components/ui/BrandLoader";
 import { Button } from "@/components/ui/button";
+import { BookingHistory } from "@/components/patient/BookingHistory";
 
 const practitionerName =
   process.env.NEXT_PUBLIC_BOOKING_PRACTITIONER_NAME ?? "Dr. Elena Rodriguez";
@@ -310,6 +311,8 @@ export default function BookPage() {
             </div>
           </div>
         </section>
+
+        {patientId && <BookingHistory patientId={patientId} />}
 
         <div className="mt-10 grid gap-4 sm:grid-cols-[2fr_1fr]">
           <div className="rounded-3xl border border-[#e6eaef] bg-[#f7f9fc] p-6">

@@ -1,5 +1,4 @@
 import Image from "next/image";
-import Link from "next/link";
 import { ShieldCheck, Video } from "lucide-react";
 
 export function SiteFooter() {
@@ -35,19 +34,8 @@ export function SiteFooter() {
       </div>
 
       <div className="border-t border-[#18336b]">
-        <div className="mx-auto flex max-w-7xl flex-col gap-2 px-4 py-4 text-xs text-[#b6caef] sm:flex-row sm:items-center sm:justify-between sm:px-6">
-          <p>Copyright {new Date().getFullYear()} L-Evate Network. All rights reserved.</p>
-          <div className="flex items-center gap-4">
-            <Link href="/" className="hover:text-white">
-              Privacy
-            </Link>
-            <Link href="/" className="hover:text-white">
-              Terms
-            </Link>
-            <Link href="/" className="hover:text-white">
-              Support
-            </Link>
-          </div>
+        <div className="mx-auto max-w-7xl px-4 py-4 text-xs text-[#b6caef] sm:px-6">
+          <p className="text-center">Copyright 2026 L-Evate Network. All rights reserved.</p>
         </div>
       </div>
     </footer>
