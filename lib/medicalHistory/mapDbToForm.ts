@@ -1,6 +1,6 @@
 import type { MedicalHistoryFormValues } from "@/lib/schemas/medicalHistory";
 
-/** Maps a medical_history DB row to react-hook-form values. */
+/** medical_history row → react-hook-form values. */
 export function medicalHistoryRowToFormValues(row: {
   patient_name: string;
   date_of_birth: string;

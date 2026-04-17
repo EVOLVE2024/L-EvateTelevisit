@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -14,32 +15,62 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
-const consentFields = [
+type ConsentItem = {
+  key:
+    | "consent_1"
+    | "consent_2"
+    | "consent_3"
+    | "consent_4"
+    | "consent_5"
+    | "consent_6"
+    | "consent_agreement";
+  text: ReactNode;
+};
+
+const consentFields: ConsentItem[] = [
   {
-    key: "consent_1" as const,
+    key: "consent_1",
     text: "I understand that the proposed treatment has been explained to me, including its goals and expected outcomes.",
   },
   {
-    key: "consent_2" as const,
+    key: "consent_2",
     text: "I understand that results may vary between individuals and are not guaranteed.",
   },
   {
-    key: "consent_3" as const,
+    key: "consent_3",
     text: "I understand that ongoing evaluation or follow-up may be necessary to achieve optimal results.",
   },
   {
-    key: "consent_4" as const,
+    key: "consent_4",
     text: "I have been informed of possible side effects and complications that may occur during or after the treatment.",
   },
   {
-    key: "consent_5" as const,
+    key: "consent_5",
     text: "I understand that it is my responsibility to follow post-treatment care instructions provided by my practitioner.",
   },
   {
-    key: "consent_6" as const,
+    key: "consent_6",
     text: "I voluntarily consent to proceed with the proposed treatment.",
   },
-] as const;
+  {
+    key: "consent_agreement",
+    text: (
+      <>
+        I have read and agree to the{" "}
+        <Link
+          href="/consent-forms"
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          className="font-medium text-primary underline-offset-2 hover:underline"
+        >
+          Client Agreement Form
+        </Link>
+        .
+      </>
+    ),
+  },
+];
 
 export function ConsentForm() {
   const router = useRouter();
@@ -54,6 +85,7 @@ export function ConsentForm() {
       consent_4: false,
       consent_5: false,
       consent_6: false,
+      consent_agreement: false,
     },
   });
 
@@ -105,13 +137,20 @@ export function ConsentForm() {
         consent: values,
       }),
     });
-    let data: { error?: string } = {};
+    let data: { error?: string; code?: string } = {};
     try {
-      data = (await res.json()) as { error?: string };
+      data = (await res.json()) as { error?: string; code?: string };
     } catch {
       data = {};
     }
     if (!res.ok) {
+      if (res.status === 409 && data.code === "duplicate_patient") {
+        toast.error(
+          data.error ?? "This name and email combination is already registered. Please update your medical history."
+        );
+        router.replace("/onboarding/medical-history");
+        return;
+      }
       toast.error(data.error ?? "Could not save intake");
       return;
     }
@@ -158,12 +197,14 @@ export function ConsentForm() {
 
             <div className="space-y-3">
               {consentFields.map(({ key, text }) => (
-                <div
+                <label
                   key={key}
+                  htmlFor={`consent-${key}`}
                   className={cn(
-                    "flex gap-3 rounded-2xl border p-4 transition-colors",
+                    "flex cursor-pointer select-none items-start gap-3 rounded-2xl border p-4 transition-colors",
+                    "hover:border-primary/40 focus-within:border-primary/60 focus-within:ring-2 focus-within:ring-primary/15",
                     form.watch(key)
-                      ? "border-emerald-200 bg-emerald-50"
+                      ? "border-emerald-200 bg-emerald-50 hover:border-emerald-300"
                       : "border-[hsl(var(--border))]/30 bg-[hsl(var(--surface-low))]"
                   )}
                 >
@@ -171,11 +212,16 @@ export function ConsentForm() {
                     control={form.control}
                     name={key}
                     render={({ field }) => (
-                      <Checkbox checked={field.value as boolean} onCheckedChange={(v) => field.onChange(v === true)} />
+                      <Checkbox
+                        id={`consent-${key}`}
+                        checked={field.value as boolean}
+                        onCheckedChange={(v) => field.onChange(v === true)}
+                        className="mt-0.5"
+                      />
                     )}
                   />
                   <p className="text-sm leading-relaxed text-[hsl(var(--foreground))]">{text}</p>
-                </div>
+                </label>
               ))}
             </div>
 

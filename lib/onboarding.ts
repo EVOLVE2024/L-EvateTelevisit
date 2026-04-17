@@ -4,13 +4,12 @@ const STORAGE_KEY = "levate_patient";
 
 export interface PatientLocalState {
   patientId: string;
-  /** Cached profile name for instant UI greeting while summary loads. */
+  /** Cached for instant greeting while summary loads. */
   patientName?: string;
-  /** True only after medical history and consent are stored in Supabase. */
+  /** True only after medical history and consent are persisted. */
   intakeComplete: boolean;
-  /** Current intake UI step when intake is not complete. */
   intakeStep: 1 | 2;
-  /** Step 1 answers persisted locally until intake is completed. */
+  /** Step 1 draft, kept locally until intake completes. */
   medicalHistoryDraft?: MedicalHistoryFormValues;
 }
 

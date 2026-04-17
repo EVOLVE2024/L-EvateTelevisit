@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { endOfMonth, format, startOfMonth } from "date-fns";
@@ -11,6 +11,7 @@ import { CalendarWidget } from "@/components/booking/CalendarWidget";
 import { BookingConfirmModal } from "@/components/booking/BookingConfirmModal";
 import { TimeSlotPicker } from "@/components/booking/TimeSlotPicker";
 import { TimeSlotsSkeleton } from "@/components/booking/BookingSkeletons";
+import { BrandLoader } from "@/components/ui/BrandLoader";
 import { Button } from "@/components/ui/button";
 
 const practitionerName =
@@ -26,6 +27,7 @@ function firstName(full: string) {
 
 export default function BookPage() {
   const router = useRouter();
+  const [authorized, setAuthorized] = useState(false);
   const [month, setMonth] = useState(() => new Date());
   const [slotsByDate, setSlotsByDate] = useState<Record<string, string[]>>({});
   const [loading, setLoading] = useState(true);
@@ -36,6 +38,19 @@ export default function BookPage() {
   const [patientId, setPatientId] = useState<string | null>(null);
   const [patientName, setPatientName] = useState("");
   const [patientEmail, setPatientEmail] = useState("");
+
+  useLayoutEffect(() => {
+    if (typeof window === "undefined") return;
+    const s = getLocalState();
+    if (!s || !s.intakeComplete) {
+      const target = s && s.intakeStep === 2 ? "/onboarding/consent" : "/onboarding/medical-history";
+      router.replace(target);
+      return;
+    }
+    setPatientId(s.patientId);
+    if (s.patientName) setPatientName(s.patientName);
+    setAuthorized(true);
+  }, [router]);
 
   const availableDates = useMemo(() => {
     const s = new Set<string>();
@@ -97,33 +112,29 @@ export default function BookPage() {
   );
 
   useEffect(() => {
-    const s = getLocalState();
-    if (!s || !s.intakeComplete) {
-      router.replace("/");
-      return;
-    }
-    setPatientId(s.patientId);
-    if (s.patientName) {
-      setPatientName(s.patientName);
-    }
+    if (!authorized || !patientId) return;
+    let cancelled = false;
     void (async () => {
-      const r = await fetch(`/api/patient/summary?patientId=${encodeURIComponent(s.patientId)}`);
-      if (r.ok) {
-        const j = await r.json();
-        const resolvedName = (j.patient_name ?? s.patientName ?? "").trim();
-        setPatientName(resolvedName);
-        setPatientEmail(j.email ?? "");
-        setLocalState({
-          ...s,
-          patientName: resolvedName || s.patientName,
-        });
+      const r = await fetch(`/api/patient/summary?patientId=${encodeURIComponent(patientId)}`);
+      if (!r.ok || cancelled) return;
+      const j = await r.json();
+      const s = getLocalState();
+      const resolvedName = (j.patient_name ?? s?.patientName ?? "").trim();
+      setPatientName(resolvedName);
+      setPatientEmail(j.email ?? "");
+      if (s) {
+        setLocalState({ ...s, patientName: resolvedName || s.patientName });
       }
     })();
-  }, [router]);
+    return () => {
+      cancelled = true;
+    };
+  }, [authorized, patientId]);
 
   useEffect(() => {
+    if (!authorized) return;
     void loadMonth(month, patientId);
-  }, [month, patientId, loadMonth]);
+  }, [authorized, month, patientId, loadMonth]);
 
   const defaultDateForMonth = useCallback((m: Date) => {
     const todayKey = clinicDateKey(new Date());
@@ -157,6 +168,10 @@ export default function BookPage() {
       : "Select a date and time to continue.";
   const showCalendarSkeleton = loading || refreshing;
   const showSlotsSkeleton = loading || refreshing;
+
+  if (!authorized) {
+    return <BrandLoader />;
+  }
 
   return (
     <div className="text-[#1a1f24]">

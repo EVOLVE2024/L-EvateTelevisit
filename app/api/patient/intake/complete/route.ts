@@ -5,6 +5,7 @@ import { consentSchema } from "@/lib/schemas/consent";
 import { createServiceClient } from "@/lib/supabase/service";
 import { medicalHistoryFormToDbRow } from "@/lib/medicalHistory/mapFormToRow";
 import { medicalHistoryRowToFormValues } from "@/lib/medicalHistory/mapDbToForm";
+import { findDuplicatePatient } from "@/lib/patientDuplicate";
 
 const bodySchema = z.object({
   patientId: z.string().uuid(),
@@ -42,6 +43,26 @@ export async function POST(req: NextRequest) {
       medicalValues = medicalHistoryRowToFormValues(existing);
     }
 
+    const dup = await findDuplicatePatient(supabase, {
+      name: medicalValues.patient_name,
+      email: medicalValues.email,
+      excludePatientId: patientId,
+    });
+    if (dup.duplicate) {
+      return NextResponse.json(
+        {
+          error: "A patient with this name and email combination already exists.",
+          code: "duplicate_patient",
+        },
+        { status: 409 }
+      );
+    }
+
+    const { error: patientErr } = await supabase
+      .from("patients")
+      .upsert({ id: patientId }, { onConflict: "id", ignoreDuplicates: true });
+    if (patientErr) return NextResponse.json({ error: patientErr.message }, { status: 500 });
+
     const medicalRow = medicalHistoryFormToDbRow(patientId, medicalValues);
     const { error: mhErr } = await supabase.from("medical_history").upsert(medicalRow, { onConflict: "patient_id" });
     if (mhErr) return NextResponse.json({ error: mhErr.message }, { status: 500 });
@@ -54,6 +75,7 @@ export async function POST(req: NextRequest) {
       consent_4: consent.consent_4,
       consent_5: consent.consent_5,
       consent_6: consent.consent_6,
+      consent_agreement: consent.consent_agreement,
       full_name: medicalValues.patient_name,
     };
     const { error: cErr } = await supabase.from("consent_records").upsert(consentRow, { onConflict: "patient_id" });

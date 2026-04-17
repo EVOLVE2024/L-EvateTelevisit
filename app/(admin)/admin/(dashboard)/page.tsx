@@ -42,23 +42,25 @@ type Stats = {
   trend: { date: string; count: number }[];
   upcoming: {
     id: string;
+    cal_booking_id: string | null;
+    cal_booking_uid: string | null;
     start_time: string;
     end_time: string;
     status: string;
     attendee_name: string | null;
     attendee_email: string | null;
-    patient_id: string | null;
     title: string | null;
   }[];
   recent: {
     id: string;
+    cal_booking_id: string | null;
+    cal_booking_uid: string | null;
     start_time: string;
     end_time: string;
     status: string;
     attendee_name: string | null;
     attendee_email: string | null;
-    cal_booking_id: string;
-    created_at: string;
+    created_at: string | null;
   }[];
 };
 
@@ -70,36 +72,125 @@ function statusVariant(s: string) {
 }
 
 function TrendBars({ data }: { data: Stats["trend"] }) {
+  const WIDTH = 720;
+  const HEIGHT = 160;
+  const PAD_X = 8;
+  const PAD_TOP = 14;
+  const PAD_BOTTOM = 20;
+  const plotW = WIDTH - PAD_X * 2;
+  const plotH = HEIGHT - PAD_TOP - PAD_BOTTOM;
+
   const max = Math.max(1, ...data.map((d) => d.count));
+  const yTicks = [0, Math.ceil(max / 2), max];
   const total = data.reduce((s, d) => s + d.count, 0);
-  const avg = total / Math.max(1, data.length);
+  const stepX = data.length > 1 ? plotW / (data.length - 1) : plotW;
+  const barWidth = Math.max(4, (plotW / Math.max(1, data.length)) * 0.6);
+
+  const pointFor = (i: number, count: number) => {
+    const x = PAD_X + (data.length > 1 ? i * stepX : plotW / 2);
+    const y = PAD_TOP + plotH - (count / max) * plotH;
+    return { x, y };
+  };
+
+  const linePath = data
+    .map((d, i) => {
+      const { x, y } = pointFor(i, d.count);
+      return `${i === 0 ? "M" : "L"}${x.toFixed(2)} ${y.toFixed(2)}`;
+    })
+    .join(" ");
+
+  const areaPath =
+    data.length > 0
+      ? `${linePath} L${(PAD_X + (data.length - 1) * stepX).toFixed(2)} ${(PAD_TOP + plotH).toFixed(2)} L${PAD_X.toFixed(2)} ${(PAD_TOP + plotH).toFixed(2)} Z`
+      : "";
 
   return (
-    <div className="flex h-40 items-end gap-[3px]">
-      {data.map((d) => {
-        const pct = (d.count / max) * 100;
-        const aboveAvg = d.count >= avg && d.count > 0;
-        return (
-          <div
-            key={d.date}
-            className="group relative flex flex-1 items-end"
-            title={`${format(parseISO(d.date), "PP")} — ${d.count} booking${d.count === 1 ? "" : "s"}`}
-          >
-            <div
-              className={cn(
-                "w-full rounded-t-md transition-all",
-                d.count === 0
-                  ? "bg-[hsl(var(--surface-low))]"
-                  : aboveAvg
-                  ? "bg-primary"
-                  : "bg-primary/45",
-                "group-hover:opacity-90"
-              )}
-              style={{ height: `${Math.max(pct, d.count === 0 ? 4 : 10)}%` }}
-            />
-          </div>
-        );
-      })}
+    <div className="relative w-full">
+      <svg
+        viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
+        preserveAspectRatio="none"
+        className="block h-44 w-full"
+        role="img"
+        aria-label={`Bookings trend, ${total} total across ${data.length} days`}
+      >
+        <defs>
+          <linearGradient id="trend-area" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity="0.28" />
+            <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity="0" />
+          </linearGradient>
+        </defs>
+
+        {yTicks.map((v, i) => {
+          const y = PAD_TOP + plotH - (v / max) * plotH;
+          return (
+            <g key={i}>
+              <line
+                x1={PAD_X}
+                x2={WIDTH - PAD_X}
+                y1={y}
+                y2={y}
+                stroke="hsl(var(--border))"
+                strokeOpacity={i === 0 ? 0.35 : 0.15}
+                strokeDasharray={i === 0 ? undefined : "3 4"}
+              />
+              <text
+                x={WIDTH - PAD_X}
+                y={y - 3}
+                textAnchor="end"
+                className="fill-muted-foreground"
+                fontSize="9"
+                fontFamily="ui-monospace, SFMono-Regular, Menlo, monospace"
+              >
+                {v}
+              </text>
+            </g>
+          );
+        })}
+
+        {data.map((d, i) => {
+          const { x, y } = pointFor(i, d.count);
+          const barH = d.count === 0 ? 0 : PAD_TOP + plotH - y;
+          return (
+            <g key={d.date}>
+              <title>{`${format(parseISO(d.date), "PP")} — ${d.count} booking${
+                d.count === 1 ? "" : "s"
+              }`}</title>
+              <rect
+                x={x - barWidth / 2}
+                y={PAD_TOP + plotH - barH}
+                width={barWidth}
+                height={barH}
+                rx={2}
+                fill="hsl(var(--primary))"
+                fillOpacity={d.count === 0 ? 0 : 0.18}
+              />
+            </g>
+          );
+        })}
+
+        {areaPath && <path d={areaPath} fill="url(#trend-area)" />}
+        {linePath && (
+          <path
+            d={linePath}
+            fill="none"
+            stroke="hsl(var(--primary))"
+            strokeWidth="1.75"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        )}
+
+        {data.map((d, i) => {
+          if (d.count === 0) return null;
+          const { x, y } = pointFor(i, d.count);
+          return (
+            <g key={`dot-${d.date}`}>
+              <circle cx={x} cy={y} r={3.5} fill="white" />
+              <circle cx={x} cy={y} r={2.5} fill="hsl(var(--primary))" />
+            </g>
+          );
+        })}
+      </svg>
     </div>
   );
 }
@@ -319,7 +410,11 @@ export default function AdminDashboardPage() {
           <div className="flex items-center justify-between">
             <div>
               <h2 className="font-display text-xl font-semibold tracking-tight">Upcoming Appointments</h2>
-              <p className="text-sm text-muted-foreground">Next 6 scheduled visits</p>
+              <p className="text-sm text-muted-foreground">
+                {stats.upcoming.length === 0
+                  ? "Nothing scheduled — the next 6 visits will appear here."
+                  : `Showing ${stats.upcoming.length} of the next ${Math.max(stats.upcoming.length, 6)} visits`}
+              </p>
             </div>
             <Link
               href="/admin/bookings"
@@ -328,32 +423,76 @@ export default function AdminDashboardPage() {
               View calendar <ArrowUpRight className="h-3.5 w-3.5" />
             </Link>
           </div>
+          {stats.pendingCount > stats.upcoming.filter((b) => b.status === "pending").length && (
+            <div className="mt-4 flex items-start gap-2 rounded-2xl border border-amber-200/70 bg-amber-50/60 px-3 py-2 text-xs text-amber-900">
+              <Clock className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-700" />
+              <span>
+                {stats.pendingCount} pending booking
+                {stats.pendingCount === 1 ? "" : "s"} still need confirmation.{" "}
+                <Link
+                  href="/admin/bookings"
+                  className="font-medium text-amber-900 underline-offset-2 hover:underline"
+                >
+                  Review on the bookings page
+                </Link>
+                .
+              </span>
+            </div>
+          )}
           <ul className="mt-5 divide-y divide-[hsl(var(--border))]/10">
             {stats.upcoming.length === 0 && (
               <li className="py-6 text-sm text-muted-foreground">No upcoming appointments.</li>
             )}
-            {stats.upcoming.map((b) => (
-              <li key={b.id} className="flex items-center gap-4 py-3">
-                <div className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">
-                  <div className="text-center leading-tight">
-                    <div className="text-[10px] font-medium uppercase tracking-wider">
-                      {formatMonthShortInClinic(b.start_time)}
-                    </div>
-                    <div className="font-display text-lg font-semibold">
-                      {formatDayOfMonthInClinic(b.start_time)}
+            {stats.upcoming.map((b) => {
+              const nowMs = Date.now();
+              const startMs = new Date(b.start_time).getTime();
+              const endMs = new Date(b.end_time).getTime();
+              const inProgress = startMs <= nowMs && endMs >= nowMs;
+              return (
+                <li key={b.id} className="flex items-center gap-4 py-3">
+                  <div
+                    className={cn(
+                      "grid h-12 w-12 shrink-0 place-items-center rounded-xl",
+                      inProgress
+                        ? "bg-emerald-500/15 text-emerald-700"
+                        : "bg-primary/10 text-primary"
+                    )}
+                  >
+                    <div className="text-center leading-tight">
+                      <div className="text-[10px] font-medium uppercase tracking-wider">
+                        {formatMonthShortInClinic(b.start_time)}
+                      </div>
+                      <div className="font-display text-lg font-semibold">
+                        {formatDayOfMonthInClinic(b.start_time)}
+                      </div>
                     </div>
                   </div>
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate font-medium">{b.attendee_name ?? "Unnamed patient"}</p>
-                  <p className="truncate text-xs text-muted-foreground">
-                    {formatTimeInClinic(b.start_time)} — {formatTimeInClinic(b.end_time)} {CLINIC_TIMEZONE_ABBR}
-                    {b.attendee_email ? ` · ${b.attendee_email}` : ""}
-                  </p>
-                </div>
-                <Badge variant={statusVariant(b.status)}>{b.status}</Badge>
-              </li>
-            ))}
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <p className="truncate font-medium">
+                        {b.attendee_name ?? "Unnamed patient"}
+                      </p>
+                      {inProgress && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-emerald-700">
+                          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500" />
+                          In progress
+                        </span>
+                      )}
+                      {!inProgress && startMs > nowMs && (
+                        <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
+                          in {formatDistanceToNow(new Date(b.start_time))}
+                        </span>
+                      )}
+                    </div>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {formatTimeInClinic(b.start_time)} — {formatTimeInClinic(b.end_time)} {CLINIC_TIMEZONE_ABBR}
+                      {b.attendee_email ? ` · ${b.attendee_email}` : ""}
+                    </p>
+                  </div>
+                  <Badge variant={statusVariant(b.status)}>{b.status}</Badge>
+                </li>
+              );
+            })}
           </ul>
         </section>
 
@@ -390,7 +529,9 @@ export default function AdminDashboardPage() {
                     </span>
                   </p>
                   <p className="truncate text-xs text-muted-foreground">
-                    Booked {formatDistanceToNow(parseISO(b.created_at), { addSuffix: true })} ·{" "}
+                    {b.created_at
+                      ? `Booked ${formatDistanceToNow(parseISO(b.created_at), { addSuffix: true })} · `
+                      : ""}
                     {formatMediumDateTimeInClinic(b.start_time)} {CLINIC_TIMEZONE_ABBR}
                   </p>
                 </div>

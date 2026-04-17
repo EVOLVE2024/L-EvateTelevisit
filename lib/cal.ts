@@ -196,60 +196,62 @@ export async function createCalBooking(input: CalBookingInput) {
   return body as Record<string, unknown>;
 }
 
-export type CalRemoteBooking = {
-  id: string | number | null;
-  uid: string | null;
-  status: string | null;
-  start: string | null;
-  end: string | null;
-  title: string | null;
-  timeZone: string | null;
-  raw: Record<string, unknown>;
-};
-
-/**
- * Fetches a single booking from Cal.com. Used by the reconciliation cron
- * as the authoritative source of truth. Returns `null` if the booking no
- * longer exists remotely (HTTP 404).
- */
-export async function fetchCalBooking(uid: string): Promise<CalRemoteBooking | null> {
-  const headers = calHeaders("2026-02-25");
-  if (!headers) throw new Error("Cal.com is not configured");
-  const url = `${CAL_API_BASE}/v2/bookings/${encodeURIComponent(uid)}`;
+async function postWithIpv4Fallback(
+  url: string,
+  headers: Record<string, string>,
+  body: unknown
+): Promise<Record<string, unknown>> {
+  const json = JSON.stringify(body ?? {});
   let status = 0;
-  let text = "";
+  let rawText = "";
   try {
-    const res = await fetch(url, { headers, cache: "no-store" });
+    const res = await fetch(url, { method: "POST", headers, body: json, cache: "no-store" });
     status = res.status;
-    text = await res.text();
+    rawText = await res.text();
   } catch {
-    const alt = await requestOverIpv4(url, "GET", headers, "");
-    status = alt.status;
-    text = alt.text;
-  }
-  if (status === 404) return null;
-  if (status < 200 || status >= 300) {
-    throw new Error(`Cal fetch booking error ${status}: ${text.slice(0, 400)}`);
+    const r = await requestOverIpv4(url, "POST", headers, json);
+    status = r.status;
+    rawText = r.text;
   }
   let parsed: unknown = {};
   try {
-    parsed = text ? JSON.parse(text) : {};
+    parsed = rawText ? JSON.parse(rawText) : {};
   } catch {
-    throw new Error(`Cal fetch booking returned invalid JSON: ${text.slice(0, 200)}`);
+    parsed = { raw: rawText };
   }
-  const root = (parsed && typeof parsed === "object" ? (parsed as Record<string, unknown>) : {}) as Record<string, unknown>;
-  const data = (root.data && typeof root.data === "object" ? (root.data as Record<string, unknown>) : root) as Record<string, unknown>;
-  return {
-    id: (data.id as string | number | undefined) ?? null,
-    uid: (data.uid as string | undefined) ?? null,
-    status: (data.status as string | undefined) ?? null,
-    start: (data.start as string | undefined) ?? (data.startTime as string | undefined) ?? null,
-    end: (data.end as string | undefined) ?? (data.endTime as string | undefined) ?? null,
-    title: (data.title as string | undefined) ?? null,
-    timeZone:
-      (data.timeZone as string | undefined) ??
-      ((data.attendees as { timeZone?: string }[] | undefined)?.[0]?.timeZone ?? null),
-    raw: data,
-  };
+  if (status < 200 || status >= 300) {
+    const bodyRecord = typeof parsed === "object" && parsed ? (parsed as Record<string, unknown>) : null;
+    const nestedError =
+      bodyRecord && typeof bodyRecord.error === "object" && bodyRecord.error
+        ? (bodyRecord.error as Record<string, unknown>)
+        : null;
+    const message =
+      (nestedError && typeof nestedError.message === "string" && nestedError.message) ||
+      (bodyRecord && typeof bodyRecord.message === "string" && bodyRecord.message) ||
+      (bodyRecord && typeof bodyRecord.error === "string" && bodyRecord.error) ||
+      `Cal API error ${status}`;
+    throw new Error(`${message} (status ${status})`);
+  }
+  return (parsed ?? {}) as Record<string, unknown>;
+}
+
+/** POST /v2/bookings/{uid}/confirm — caller must own the booking. */
+export async function confirmCalBooking(uid: string): Promise<Record<string, unknown>> {
+  if (!uid) throw new Error("Booking UID is required");
+  const headers = calHeaders("2026-02-25");
+  if (!headers) throw new Error("CAL_API_KEY is not set");
+  return postWithIpv4Fallback(`${CAL_API_BASE}/v2/bookings/${encodeURIComponent(uid)}/confirm`, headers, {});
+}
+
+/** POST /v2/bookings/{uid}/decline with `{ reason }`. */
+export async function declineCalBooking(uid: string, reason: string): Promise<Record<string, unknown>> {
+  if (!uid) throw new Error("Booking UID is required");
+  const headers = calHeaders("2026-02-25");
+  if (!headers) throw new Error("CAL_API_KEY is not set");
+  return postWithIpv4Fallback(
+    `${CAL_API_BASE}/v2/bookings/${encodeURIComponent(uid)}/decline`,
+    headers,
+    { reason: reason || "Declined by host" }
+  );
 }
 

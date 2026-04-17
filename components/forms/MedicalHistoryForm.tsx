@@ -114,16 +114,42 @@ export function MedicalHistoryForm() {
             : "Other",
       });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- hydrate once from local draft
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- hydrate once
   }, []);
 
-  function onSubmit(values: MedicalHistoryFormValues) {
+  async function onSubmit(values: MedicalHistoryFormValues) {
     const state = getLocalState();
     if (!state?.patientId) {
       toast.error("Session missing. Please start again.");
       router.replace("/");
       return;
     }
+
+    try {
+      const res = await fetch("/api/patient/check-duplicate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: values.patient_name,
+          email: values.email,
+          patientId: state.patientId,
+        }),
+      });
+      if (res.ok) {
+        const data = (await res.json()) as { duplicate?: boolean };
+        if (data.duplicate) {
+          form.setError("email", {
+            type: "duplicate",
+            message: "A patient with this name and email combination already exists.",
+          });
+          toast.error("This name and email combination is already registered.");
+          return;
+        }
+      }
+    } catch {
+      // Non-fatal: server-side enforcement in /api/patient/intake/complete still guards the DB.
+    }
+
     setLocalState({
       patientId: state.patientId,
       patientName: values.patient_name,

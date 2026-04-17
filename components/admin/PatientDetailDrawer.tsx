@@ -3,6 +3,19 @@
 import { useEffect, useState } from "react";
 import { format, parseISO, isBefore } from "date-fns";
 import {
+  Calendar,
+  CheckCircle2,
+  Clock,
+  ExternalLink,
+  FileText,
+  Mail,
+  MapPin,
+  Phone,
+  ShieldCheck,
+  User,
+  XCircle,
+} from "lucide-react";
+import {
   CLINIC_TIMEZONE_ABBR,
   formatDayOfMonthInClinic,
   formatLongDateTimeInClinic,
@@ -10,30 +23,14 @@ import {
   formatMonthShortInClinic,
   formatTimeInClinic,
 } from "@/lib/time";
-import {
-  Calendar,
-  CheckCircle2,
-  Clock,
-  FileText,
-  Mail,
-  MapPin,
-  Phone,
-  ShieldCheck,
-  User,
-} from "lucide-react";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Drawer } from "@/components/ui/drawer";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
 type Booking = {
   id: string;
-  cal_booking_id: string;
+  cal_booking_id: string | null;
   cal_booking_uid: string | null;
   status: string;
   title: string | null;
@@ -42,7 +39,11 @@ type Booking = {
   timezone: string | null;
   attendee_name: string | null;
   attendee_email: string | null;
-  created_at: string;
+  created_at: string | null;
+  meeting_url: string | null;
+  location: string | null;
+  cancellation_reason: string | null;
+  supabase_patient_id: string | null;
 };
 
 type Medical = {
@@ -78,6 +79,7 @@ type Consent = {
   consent_4?: boolean;
   consent_5?: boolean;
   consent_6?: boolean;
+  consent_agreement?: boolean;
   full_name?: string;
   signed_at?: string;
   [k: string]: unknown;
@@ -105,6 +107,7 @@ function statusVariant(s: string) {
   if (s === "confirmed") return "success" as const;
   if (s === "cancelled") return "destructive" as const;
   if (s === "pending") return "warning" as const;
+  if (s === "rescheduled") return "secondary" as const;
   return "secondary" as const;
 }
 
@@ -123,16 +126,77 @@ function YesNo({ value }: { value: unknown }) {
   return <span className="text-muted-foreground">—</span>;
 }
 
-function Field({ label, value }: { label: string; value: React.ReactNode }) {
+function Field({
+  label,
+  value,
+  className,
+}: {
+  label: string;
+  value: React.ReactNode;
+  className?: string;
+}) {
   return (
-    <div className="rounded-xl border border-[hsl(var(--border))]/10 bg-[hsl(var(--surface-low))]/40 p-3">
+    <div
+      className={cn(
+        "rounded-xl border border-[hsl(var(--border))]/10 bg-[hsl(var(--surface-low))]/40 p-3",
+        className
+      )}
+    >
       <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</p>
-      <div className="mt-1 text-sm text-foreground">{value ?? <span className="text-muted-foreground">—</span>}</div>
+      <div className="mt-1 text-sm text-foreground">
+        {value ?? <span className="text-muted-foreground">—</span>}
+      </div>
     </div>
   );
 }
 
-export function PatientDetailModal({
+/** Yes/No habit card with follow-up details shown only when the answer is "Yes". */
+function HabitCard({
+  label,
+  yes,
+  details,
+  className,
+}: {
+  label: string;
+  yes: unknown;
+  details: Array<{ label: string; value: React.ReactNode }>;
+  className?: string;
+}) {
+  const shown = yes === true ? details.filter((d) => d.value != null && d.value !== "") : [];
+  return (
+    <div
+      className={cn(
+        "rounded-xl border border-[hsl(var(--border))]/10 bg-[hsl(var(--surface-low))]/40 p-3",
+        className
+      )}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</p>
+        <YesNo value={yes} />
+      </div>
+      {shown.length > 0 && (
+        <dl className="mt-2.5 flex flex-wrap gap-x-4 gap-y-1.5 text-sm text-foreground">
+          {shown.map((d, i) => (
+            <div key={i} className="flex items-baseline gap-1.5">
+              <dt className="text-[11px] uppercase tracking-wider text-muted-foreground">{d.label}</dt>
+              <dd className="break-all font-medium">{d.value}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
+    </div>
+  );
+}
+
+function SubHeading({ children }: { children: React.ReactNode }) {
+  return (
+    <h4 className="mb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+      {children}
+    </h4>
+  );
+}
+
+export function PatientDetailDrawer({
   patientId,
   onClose,
 }: {
@@ -178,35 +242,28 @@ export function PatientDetailModal({
     : 0;
 
   return (
-    <Dialog
+    <Drawer
       open={open}
-      onOpenChange={(v) => {
-        if (!v) onClose();
-      }}
+      onClose={onClose}
+      width="w-[min(96vw,720px)]"
+      title={mh?.patient_name ?? "Patient details"}
+      subtitle={data ? `ID ${data.patient.id}` : undefined}
     >
-      <DialogContent className="max-h-[90vh] w-[min(96vw,1040px)] max-w-none overflow-y-auto sm:rounded-3xl">
-        <DialogHeader className="sr-only">
-          <DialogTitle>Patient details</DialogTitle>
-        </DialogHeader>
-
+      <div className="space-y-6 px-6 py-6">
         {loading || !data ? (
-          <div className="space-y-4">
+          <>
             <Skeleton className="h-24 w-full rounded-2xl" />
             <Skeleton className="h-40 w-full rounded-2xl" />
             <Skeleton className="h-48 w-full rounded-2xl" />
-          </div>
+          </>
         ) : (
-          <div className="space-y-6">
-            <section className="flex flex-wrap items-start gap-4 rounded-2xl bg-gradient-to-br from-primary/10 via-white to-white p-5">
-              <div className="grid h-16 w-16 shrink-0 place-items-center rounded-2xl bg-primary text-primary-foreground shadow-ambient">
-                <span className="font-display text-lg font-semibold">{initials(mh?.patient_name)}</span>
+          <>
+            <section className="flex items-start gap-4 rounded-2xl bg-gradient-to-br from-primary/10 via-white to-white p-5">
+              <div className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-primary text-primary-foreground shadow-ambient">
+                <span className="font-display text-base font-semibold">{initials(mh?.patient_name)}</span>
               </div>
               <div className="min-w-0 flex-1">
-                <h2 className="font-display text-2xl font-semibold tracking-tight">
-                  {mh?.patient_name ?? "Unnamed patient"}
-                </h2>
-                <p className="mt-0.5 font-mono text-xs text-muted-foreground">ID {data.patient.id}</p>
-                <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-muted-foreground">
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-muted-foreground">
                   {mh?.email && (
                     <span className="inline-flex items-center gap-1.5">
                       <Mail className="h-3.5 w-3.5" />
@@ -226,25 +283,21 @@ export function PatientDetailModal({
                     </span>
                   )}
                 </div>
-              </div>
-              <div className="grid grid-cols-3 gap-3 sm:min-w-[280px]">
-                <div className="rounded-xl bg-white/70 p-3 text-center">
-                  <div className="font-display text-xl font-semibold text-primary">
-                    {bookings.length}
+                <div className="mt-3 grid grid-cols-3 gap-2">
+                  <div className="rounded-xl bg-white/70 p-2 text-center">
+                    <div className="font-display text-lg font-semibold text-primary">{bookings.length}</div>
+                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Total</div>
                   </div>
-                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Total</div>
-                </div>
-                <div className="rounded-xl bg-white/70 p-3 text-center">
-                  <div className="font-display text-xl font-semibold text-emerald-600">
-                    {upcoming.length}
+                  <div className="rounded-xl bg-white/70 p-2 text-center">
+                    <div className="font-display text-lg font-semibold text-emerald-600">
+                      {upcoming.length}
+                    </div>
+                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Upcoming</div>
                   </div>
-                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Upcoming</div>
-                </div>
-                <div className="rounded-xl bg-white/70 p-3 text-center">
-                  <div className="font-display text-xl font-semibold text-slate-600">
-                    {past.length}
+                  <div className="rounded-xl bg-white/70 p-2 text-center">
+                    <div className="font-display text-lg font-semibold text-slate-600">{past.length}</div>
+                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Completed</div>
                   </div>
-                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Completed</div>
                 </div>
               </div>
             </section>
@@ -254,7 +307,7 @@ export function PatientDetailModal({
                 <User className="h-4 w-4 text-primary" />
                 <h3 className="font-display text-base font-semibold">Personal & Contact</h3>
               </div>
-              <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
                 <Field label="Patient Name" value={mh?.patient_name} />
                 <Field
                   label="Date of Birth"
@@ -278,22 +331,63 @@ export function PatientDetailModal({
               {!mh ? (
                 <p className="mt-4 text-sm text-muted-foreground">No medical history on file.</p>
               ) : (
-                <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  <Field label="Reason for Visit" value={mh.reason_for_visit} />
-                  <Field
-                    label="Last Physical Exam"
-                    value={mh.last_physical_exam ? format(parseISO(mh.last_physical_exam), "PP") : null}
-                  />
-                  <Field label="General Health Good" value={<YesNo value={mh.general_health_good} />} />
-                  <Field label="Health Notes" value={mh.general_health_notes} />
-                  <Field label="Smokes" value={<YesNo value={mh.smokes} />} />
-                  <Field label="Per Day" value={mh.smoke_per_day} />
-                  <Field label="Years" value={mh.smoke_years} />
-                  <Field label="Drinks Alcohol" value={<YesNo value={mh.drinks_alcohol} />} />
-                  <Field label="Alcohol Details" value={mh.alcohol_details} />
-                  <Field label="Tanning / Sun" value={<YesNo value={mh.tanning_bed} />} />
-                  <Field label="Takes Vitamins" value={<YesNo value={mh.takes_vitamins} />} />
-                  <Field label="Treatments Interested" value={mh.treatments_interested} />
+                <div className="mt-4 space-y-5">
+                  <div>
+                    <SubHeading>Visit</SubHeading>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <Field
+                        label="Reason for Visit"
+                        value={mh.reason_for_visit}
+                        className="sm:col-span-2"
+                      />
+                      <Field
+                        label="Last Physical Exam"
+                        value={mh.last_physical_exam ? format(parseISO(mh.last_physical_exam), "PP") : null}
+                      />
+                      <Field
+                        label="General Health"
+                        value={<YesNo value={mh.general_health_good} />}
+                      />
+                      {mh.general_health_notes && (
+                        <Field
+                          label="Health Notes"
+                          value={mh.general_health_notes}
+                          className="sm:col-span-2"
+                        />
+                      )}
+                    </div>
+                  </div>
+
+                  <div>
+                    <SubHeading>Habits</SubHeading>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <HabitCard
+                        label="Smoking"
+                        yes={mh.smokes}
+                        details={[
+                          { label: "Per day", value: mh.smoke_per_day },
+                          { label: "Years", value: mh.smoke_years },
+                        ]}
+                      />
+                      <HabitCard
+                        label="Alcohol"
+                        yes={mh.drinks_alcohol}
+                        details={[{ label: "Details", value: mh.alcohol_details }]}
+                      />
+                      <Field label="Tanning / Sun" value={<YesNo value={mh.tanning_bed} />} />
+                      <Field label="Takes Vitamins" value={<YesNo value={mh.takes_vitamins} />} />
+                    </div>
+                  </div>
+
+                  {mh.treatments_interested && (
+                    <div>
+                      <SubHeading>Treatments</SubHeading>
+                      <Field
+                        label="Treatments Interested"
+                        value={mh.treatments_interested}
+                      />
+                    </div>
+                  )}
                 </div>
               )}
             </section>
@@ -314,7 +408,7 @@ export function PatientDetailModal({
                 <p className="mt-4 text-sm text-muted-foreground">No consent record on file.</p>
               ) : (
                 <div className="mt-4 space-y-3">
-                  <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                  <div className="grid gap-2 sm:grid-cols-2">
                     {[1, 2, 3, 4, 5, 6].map((i) => {
                       const ok = Boolean(consent[`consent_${i}`]);
                       return (
@@ -327,7 +421,11 @@ export function PatientDetailModal({
                               : "border-[hsl(var(--border))]/10 bg-[hsl(var(--surface-low))]/40 text-muted-foreground"
                           )}
                         >
-                          <CheckCircle2 className={cn("h-4 w-4", ok ? "text-emerald-600" : "text-muted-foreground/50")} />
+                          {ok ? (
+                            <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                          ) : (
+                            <XCircle className="h-4 w-4 text-muted-foreground/50" />
+                          )}
                           Statement {i}
                         </div>
                       );
@@ -337,9 +435,7 @@ export function PatientDetailModal({
                     <span>
                       Signed by <span className="font-medium text-foreground">{consent.full_name ?? "—"}</span>
                     </span>
-                    <span>
-                      {consent.signed_at ? formatLongDateTimeInClinic(consent.signed_at) : "—"}
-                    </span>
+                    <span>{consent.signed_at ? formatLongDateTimeInClinic(consent.signed_at) : "—"}</span>
                   </div>
                 </div>
               )}
@@ -350,7 +446,8 @@ export function PatientDetailModal({
                 <Calendar className="h-4 w-4 text-primary" />
                 <h3 className="font-display text-base font-semibold">Bookings</h3>
                 <span className="ml-auto text-xs text-muted-foreground">
-                  {bookings.length} total · {upcoming.length} upcoming · {past.length} completed · {cancelled.length} cancelled
+                  {bookings.length} total · {upcoming.length} upcoming · {past.length} completed · {cancelled.length}{" "}
+                  cancelled
                 </span>
               </div>
               {bookings.length === 0 ? (
@@ -369,10 +466,10 @@ export function PatientDetailModal({
                 </div>
               )}
             </section>
-          </div>
+          </>
         )}
-      </DialogContent>
-    </Dialog>
+      </div>
+    </Drawer>
   );
 }
 
@@ -417,14 +514,22 @@ function BookingGroup({
               </p>
               <p className="mt-0.5 inline-flex items-center gap-1.5 text-xs text-muted-foreground">
                 <Clock className="h-3 w-3" />
-                {formatMediumDateTimeInClinic(b.start_time)} — {formatTimeInClinic(b.end_time)} {CLINIC_TIMEZONE_ABBR}
+                {formatMediumDateTimeInClinic(b.start_time)} — {formatTimeInClinic(b.end_time)}{" "}
+                {CLINIC_TIMEZONE_ABBR}
               </p>
             </div>
             <div className="flex items-center gap-3">
               <Badge variant={statusVariant(b.status)}>{b.status}</Badge>
-              <span className="hidden font-mono text-[10px] text-muted-foreground sm:inline">
-                {b.cal_booking_id}
-              </span>
+              {b.meeting_url && (
+                <a
+                  href={b.meeting_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                >
+                  Meeting <ExternalLink className="h-3 w-3" />
+                </a>
+              )}
             </div>
           </li>
         ))}

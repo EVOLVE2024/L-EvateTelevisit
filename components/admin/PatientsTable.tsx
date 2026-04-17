@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { format, parseISO } from "date-fns";
-import { Search, Users as UsersIcon } from "lucide-react";
+import { Phone, Search, Users as UsersIcon } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -13,9 +13,8 @@ import {
 } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { PatientDetailModal } from "@/components/admin/PatientDetailModal";
+import { PatientDetailDrawer } from "@/components/admin/PatientDetailDrawer";
 
 export type PatientRow = {
   id: string;
@@ -27,9 +26,6 @@ export type PatientRow = {
   sex: string | null;
   reason: string | null;
   onboarding: "Complete" | "Partial" | "None";
-  bookingCount: number;
-  upcomingCount: number;
-  pastCount: number;
 };
 
 function initials(name: string) {
@@ -40,12 +36,6 @@ function initials(name: string) {
     .slice(0, 2)
     .join("")
     .toUpperCase();
-}
-
-function onboardingVariant(s: PatientRow["onboarding"]) {
-  if (s === "Complete") return "success" as const;
-  if (s === "Partial") return "warning" as const;
-  return "secondary" as const;
 }
 
 export function PatientsTable() {
@@ -116,11 +106,10 @@ export function PatientsTable() {
             <TableHeader>
               <TableRow>
                 <TableHead>Patient</TableHead>
-                <TableHead>Contact</TableHead>
+                <TableHead>Email</TableHead>
+                <TableHead>Phone</TableHead>
                 <TableHead>DOB</TableHead>
                 <TableHead>Reason</TableHead>
-                <TableHead>Onboarding</TableHead>
-                <TableHead className="text-right">Bookings</TableHead>
                 <TableHead>Joined</TableHead>
               </TableRow>
             </TableHeader>
@@ -144,28 +133,24 @@ export function PatientsTable() {
                       </div>
                     </div>
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="max-w-[260px]">
                     <p className="truncate">{r.email}</p>
-                    <p className="truncate text-xs text-muted-foreground">{r.cell}</p>
+                  </TableCell>
+                  <TableCell>
+                    {r.cell && r.cell !== "—" ? (
+                      <span className="inline-flex items-center gap-1.5 text-sm">
+                        <Phone className="h-3.5 w-3.5 text-muted-foreground" />
+                        {r.cell}
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
                   </TableCell>
                   <TableCell>
                     {r.dob ? format(parseISO(r.dob), "PP") : <span className="text-muted-foreground">—</span>}
                   </TableCell>
-                  <TableCell className="max-w-[220px]">
+                  <TableCell className="max-w-[260px]">
                     <p className="truncate text-sm text-muted-foreground">{r.reason ?? "—"}</p>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={onboardingVariant(r.onboarding)}>{r.onboarding}</Badge>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="inline-flex items-center gap-2 text-sm">
-                      <span className="rounded-md bg-primary/10 px-2 py-0.5 font-semibold text-primary">
-                        {r.bookingCount}
-                      </span>
-                      <span className="text-xs text-muted-foreground">
-                        {r.upcomingCount} upcoming
-                      </span>
-                    </div>
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
                     {format(parseISO(r.created_at), "PP")}
@@ -174,7 +159,7 @@ export function PatientsTable() {
               ))}
               {rows.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={7} className="py-12 text-center text-muted-foreground">
+                  <TableCell colSpan={6} className="py-12 text-center text-muted-foreground">
                     No patients found.
                   </TableCell>
                 </TableRow>
@@ -208,7 +193,7 @@ export function PatientsTable() {
         </div>
       </div>
 
-      <PatientDetailModal
+      <PatientDetailDrawer
         patientId={selectedId}
         onClose={() => setSelectedId(null)}
       />

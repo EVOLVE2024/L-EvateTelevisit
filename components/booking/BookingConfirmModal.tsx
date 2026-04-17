@@ -1,8 +1,6 @@
 "use client";
 
 import { useState } from "react";
-// import { useRef } from "react";
-// import ReCAPTCHA from "react-google-recaptcha";
 import { toast } from "sonner";
 import { Lock, ShieldCheck, UserRound } from "lucide-react";
 import {
@@ -39,17 +37,9 @@ export function BookingConfirmModal({
 }: Props) {
   const [token] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  // Human verification is temporarily disabled.
-  // const recaptchaRef = useRef<ReCAPTCHA>(null);
-  // const siteKey = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY ?? "";
 
   async function confirm() {
     if (!slotIso) return;
-    // Human verification is temporarily disabled.
-    // if (!token) {
-    //   toast.error("Please complete reCAPTCHA");
-    //   return;
-    // }
     setSubmitting(true);
     try {
       const res = await fetch("/api/cal/booking", {
@@ -73,17 +63,11 @@ export function BookingConfirmModal({
         } else {
           toast.error(rawError);
         }
-        // Human verification is temporarily disabled.
-        // recaptchaRef.current?.reset();
-        // setToken(null);
         return;
       }
       const b = data.booking as { start: string; end: string | null; name: string; email: string };
       onBooked(b);
       onOpenChange(false);
-      // Human verification is temporarily disabled.
-      // recaptchaRef.current?.reset();
-      // setToken(null);
     } finally {
       setSubmitting(false);
     }
@@ -109,14 +93,6 @@ export function BookingConfirmModal({
             <Lock className="h-4 w-4 text-primary" /> {patientEmail}
           </p>
         </div>
-        {/* Human verification is temporarily disabled.
-        {siteKey ? (
-          <div className="flex justify-center py-2">
-            <ReCAPTCHA ref={recaptchaRef} sitekey={siteKey} onChange={(t) => setToken(t)} />
-          </div>
-        ) : (
-          <p className="text-sm text-destructive">reCAPTCHA is not configured.</p>
-        )} */}
         <DialogFooter>
           <Button variant="secondary" type="button" onClick={() => onOpenChange(false)}>
             Cancel
