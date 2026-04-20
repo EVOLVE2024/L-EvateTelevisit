@@ -8,6 +8,7 @@ import {
   Clock,
   ExternalLink,
   FileText,
+  IdCard,
   Mail,
   MapPin,
   Phone,
@@ -82,6 +83,8 @@ type Consent = {
   consent_agreement?: boolean;
   full_name?: string;
   signed_at?: string;
+  driver_license_object_path?: string | null;
+  driver_license_available?: boolean;
   [k: string]: unknown;
 };
 
@@ -436,6 +439,30 @@ export function PatientDetailDrawer({
                       Signed by <span className="font-medium text-foreground">{consent.full_name ?? "—"}</span>
                     </span>
                     <span>{consent.signed_at ? formatLongDateTimeInClinic(consent.signed_at) : "—"}</span>
+                  </div>
+                  <div className="rounded-xl border border-[hsl(var(--border))]/10 bg-[hsl(var(--surface-low))]/40 p-3">
+                    <p className="inline-flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      <IdCard className="h-3.5 w-3.5" /> Driver&apos;s License (Front)
+                    </p>
+                    {consent.driver_license_available ? (
+                      <div className="mt-2 space-y-2">
+                        <img
+                          src={`/api/admin/patients/${data.patient.id}/license`}
+                          alt="Patient driver license front"
+                          className="max-h-72 w-full rounded-lg border border-[hsl(var(--border))]/20 object-contain bg-white"
+                        />
+                        <a
+                          href={`/api/admin/patients/${data.patient.id}/license`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                        >
+                          Open full image <ExternalLink className="h-3 w-3" />
+                        </a>
+                      </div>
+                    ) : (
+                      <p className="mt-2 text-sm text-muted-foreground">No driver license uploaded.</p>
+                    )}
                   </div>
                 </div>
               )}

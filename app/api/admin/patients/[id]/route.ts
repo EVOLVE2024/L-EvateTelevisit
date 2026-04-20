@@ -76,7 +76,12 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     return NextResponse.json({
       patient,
       medical_history: mh,
-      consent: cr,
+      consent: cr
+        ? {
+            ...cr,
+            driver_license_available: Boolean(cr.driver_license_object_path),
+          }
+        : null,
       bookings,
     });
   } catch (e) {

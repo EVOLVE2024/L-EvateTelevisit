@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
-import { AlertCircle, CheckCircle2, Info, ShieldCheck } from "lucide-react";
+import { AlertCircle, Camera, CheckCircle2, IdCard, Info, ShieldCheck } from "lucide-react";
 import { getLocalState, setLocalState } from "@/lib/onboarding";
 import { consentSchema, type ConsentFormValues } from "@/lib/schemas/consent";
 import type { MedicalHistoryFormValues } from "@/lib/schemas/medicalHistory";
@@ -72,9 +72,73 @@ const consentFields: ConsentItem[] = [
   },
 ];
 
+const MAX_UPLOAD_BYTES = 4 * 1024 * 1024;
+const TARGET_UPLOAD_BYTES = Math.floor(MAX_UPLOAD_BYTES * 0.9);
+const MAX_IMAGE_DIMENSION = 2000;
+
+async function canvasToJpegBlob(canvas: HTMLCanvasElement, quality: number): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(
+      (blob) => {
+        if (!blob) {
+          reject(new Error("Failed to process image."));
+          return;
+        }
+        resolve(blob);
+      },
+      "image/jpeg",
+      quality
+    );
+  });
+}
+
+async function prepareUploadFile(file: File): Promise<File> {
+  if (!file.type.startsWith("image/")) return file;
+
+  const objectUrl = URL.createObjectURL(file);
+  try {
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const image = new Image();
+      image.onload = () => resolve(image);
+      image.onerror = () => reject(new Error("Could not read the selected image."));
+      image.src = objectUrl;
+    });
+
+    const longestSide = Math.max(img.width, img.height);
+    const scale = longestSide > MAX_IMAGE_DIMENSION ? MAX_IMAGE_DIMENSION / longestSide : 1;
+    const width = Math.max(1, Math.round(img.width * scale));
+    const height = Math.max(1, Math.round(img.height * scale));
+
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("Unable to process image.");
+    ctx.drawImage(img, 0, 0, width, height);
+
+    let quality = 0.9;
+    let blob = await canvasToJpegBlob(canvas, quality);
+    while (blob.size > TARGET_UPLOAD_BYTES && quality > 0.4) {
+      quality -= 0.1;
+      blob = await canvasToJpegBlob(canvas, quality);
+    }
+
+    return new File([blob], `driver-license-${Date.now()}.jpg`, {
+      type: "image/jpeg",
+      lastModified: Date.now(),
+    });
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
+
 export function ConsentForm() {
   const router = useRouter();
   const [serverMedical, setServerMedical] = useState<MedicalHistoryFormValues | null | undefined>(undefined);
+  const [licenseFile, setLicenseFile] = useState<File | null>(null);
+  const [licensePreviewUrl, setLicensePreviewUrl] = useState<string | null>(null);
+  const [licenseError, setLicenseError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const submittedRef = useRef(false);
 
   const form = useForm<ConsentFormValues>({
@@ -125,6 +189,20 @@ export function ConsentForm() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- react once when detection completes
   }, [medicalDataMissing]);
 
+  useEffect(() => {
+    return () => {
+      if (licensePreviewUrl) URL.revokeObjectURL(licensePreviewUrl);
+    };
+  }, [licensePreviewUrl]);
+
+  function onLicenseSelected(file: File | null) {
+    if (!file) return;
+    if (licensePreviewUrl) URL.revokeObjectURL(licensePreviewUrl);
+    setLicenseError(null);
+    setLicenseFile(file);
+    setLicensePreviewUrl(URL.createObjectURL(file));
+  }
+
   async function onSubmit(values: ConsentFormValues) {
     const state = getLocalState();
     if (!state?.patientId) {
@@ -138,6 +216,18 @@ export function ConsentForm() {
       router.replace("/onboarding/medical-history");
       return;
     }
+    if (!licenseFile) {
+      setLicenseError("Please upload the front of your driver's license.");
+      toast.error("Driver's license image is required.");
+      return;
+    }
+    if (!licenseFile.type.startsWith("image/")) {
+      setLicenseError("Please upload an image file.");
+      toast.error("Please upload a valid image.");
+      return;
+    }
+    setLicenseError(null);
+
     const res = await fetch("/api/patient/intake/complete", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -164,6 +254,41 @@ export function ConsentForm() {
       toast.error(data.error ?? "Could not save intake");
       return;
     }
+
+    let uploadFile = licenseFile;
+    try {
+      uploadFile = await prepareUploadFile(licenseFile);
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "Could not process image.";
+      setLicenseError(message);
+      toast.error(message);
+      return;
+    }
+    if (uploadFile.size > MAX_UPLOAD_BYTES) {
+      const msg = "Image is too large to upload. Please use a smaller photo.";
+      setLicenseError(msg);
+      toast.error(msg);
+      return;
+    }
+
+    const uploadBody = new FormData();
+    uploadBody.set("patientId", state.patientId);
+    uploadBody.set("file", uploadFile);
+    const uploadRes = await fetch("/api/patient/intake/upload-license", {
+      method: "POST",
+      body: uploadBody,
+    });
+    let uploadData: { error?: string } = {};
+    try {
+      uploadData = (await uploadRes.json()) as { error?: string };
+    } catch {
+      uploadData = {};
+    }
+    if (!uploadRes.ok) {
+      toast.error(uploadData.error ?? "Intake saved, but driver license upload failed. Please try again.");
+      return;
+    }
+
     submittedRef.current = true;
     setLocalState({
       patientId: state.patientId,
@@ -194,6 +319,66 @@ export function ConsentForm() {
   return (
     <div className="grid gap-6 lg:grid-cols-[1.5fr_1fr]">
       <form onSubmit={form.handleSubmit(onSubmit)} className="intake-form space-y-6">
+        <Card className="border-[hsl(var(--border))]/30 bg-white/85 shadow-ambient backdrop-blur">
+          <CardContent className="space-y-5 p-6">
+            <div className="flex items-start gap-3">
+              <div className="rounded-xl bg-primary/10 p-2 text-primary">
+                <IdCard className="h-5 w-5" />
+              </div>
+              <div>
+                <h2 className="font-display text-2xl font-semibold tracking-tight">Driver&apos;s License</h2>
+                <p className="text-sm text-muted-foreground">
+                  Upload the front photo of your driver&apos;s license to continue.
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                className="hidden"
+                onChange={(e) => {
+                  onLicenseSelected(e.target.files?.[0] ?? null);
+                  e.currentTarget.value = "";
+                }}
+              />
+
+              {licensePreviewUrl ? (
+                <div className="overflow-hidden rounded-2xl border border-[hsl(var(--border))]/30 bg-[hsl(var(--surface-low))]">
+                  <img src={licensePreviewUrl} alt="Driver license preview" className="h-56 w-full object-cover" />
+                </div>
+              ) : (
+                <div className="grid h-56 place-items-center rounded-2xl border border-dashed border-[hsl(var(--border))]/40 bg-[hsl(var(--surface-low))]/60">
+                  <div className="text-center text-sm text-muted-foreground">
+                    <p>No image uploaded yet.</p>
+                    <p className="mt-1 text-xs">Use a clear photo of your license front.</p>
+                  </div>
+                </div>
+              )}
+
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={form.formState.isSubmitting}
+              >
+                <Camera className="mr-2 h-4 w-4" />
+                {licensePreviewUrl ? "Retake / replace photo" : "Take photo or upload image"}
+              </Button>
+            </div>
+
+            {licenseError ? (
+              <p className="inline-flex items-center gap-2 text-sm text-destructive">
+                <AlertCircle className="h-4 w-4" /> {licenseError}
+              </p>
+            ) : null}
+          </CardContent>
+        </Card>
+
         <Card className="border-[hsl(var(--border))]/30 bg-white/85 shadow-ambient backdrop-blur">
           <CardContent className="space-y-5 p-6">
             <div className="flex items-start gap-3">
@@ -259,7 +444,13 @@ export function ConsentForm() {
             <Button
               type="submit"
               className="w-full"
-              disabled={form.formState.isSubmitting || !allChecked || medicalDataPending || medicalDataMissing}
+              disabled={
+                form.formState.isSubmitting ||
+                !allChecked ||
+                medicalDataPending ||
+                medicalDataMissing ||
+                !licenseFile
+              }
             >
               {form.formState.isSubmitting ? "Saving…" : medicalDataPending ? "Loading…" : "Confirm & sign intake"}
             </Button>
