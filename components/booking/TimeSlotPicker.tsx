@@ -43,7 +43,7 @@ export function TimeSlotPicker({ slots, selected, onSelect, disabledSlots }: Pro
     <div className="space-y-5">
       <div className="flex items-baseline justify-between gap-3">
         <h2 className="text-lg font-semibold text-[#16212d]">Available Slots</h2>
-        <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#8a96a2]">Mountain Time</span>
+        <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#8a96a2]">Eastern Time</span>
       </div>
       {groups.map(([label, group]) => (
         <div key={label} className="space-y-2.5">

@@ -73,7 +73,7 @@ function BookingCard({ booking, isPast }: { booking: BookingItem; isPast: boolea
         </p>
         <p className="flex items-center gap-1.5 text-sm text-[#4f6071]">
           <Calendar className="h-4 w-4 shrink-0 text-[#7a95b0]" />
-          {formatDateTimeInClinic(booking.start)} (MT)
+          {formatDateTimeInClinic(booking.start)} (ET)
         </p>
         {booking.hostName && (
           <p className="text-sm text-[#637384]">

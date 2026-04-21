@@ -505,7 +505,7 @@ function NowIndicator() {
   }, []);
   const top = ((clinicHour(now) * 60 + clinicMinute(now)) / 60) * HOUR_ROW_HEIGHT;
   const label = new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/Denver",
+    timeZone: "America/New_York",
     hour: "numeric",
     minute: "2-digit",
     hour12: true,

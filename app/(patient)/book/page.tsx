@@ -165,7 +165,7 @@ export default function BookPage() {
 
   const selectionSummary =
     selectedSlot != null
-      ? `Selected: ${formatDateTimeInClinic(selectedSlot)} (MT)`
+      ? `Selected: ${formatDateTimeInClinic(selectedSlot)} (ET)`
       : "Select a date and time to continue.";
   const showCalendarSkeleton = loading || refreshing;
   const showSlotsSkeleton = loading || refreshing;
@@ -249,7 +249,7 @@ export default function BookPage() {
                   <Video className="h-4 w-4 text-[#6f8297]" /> Televisit - High Definition
                 </span>
                 <span className="inline-flex items-center gap-1 rounded-xl bg-[#eef5ff] px-3 py-2 text-sm font-medium text-[#0a51b7]">
-                  <Globe2 className="h-4 w-4" /> Times shown in Mountain Time (MT)
+                  <Globe2 className="h-4 w-4" /> Times shown in Eastern Time (ET)
                 </span>
               </div>
             </div>

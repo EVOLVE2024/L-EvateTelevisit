@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
     }
 
     const resolvedTimeZone =
-      typeof timeZone === "string" && timeZone.trim() ? timeZone.trim() : "America/Denver";
+      typeof timeZone === "string" && timeZone.trim() ? timeZone.trim() : "America/New_York";
 
     const calResponse = await createCalBooking({
       start: slotTime,

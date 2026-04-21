@@ -49,7 +49,7 @@ export function BookingConfirmModal({
           slotTime: slotIso,
           recaptchaToken: token,
           patientId,
-          timeZone: "America/Denver",
+          timeZone: "America/New_York",
         }),
       });
       const data = await res.json().catch(() => ({}));

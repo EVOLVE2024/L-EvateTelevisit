@@ -1,6 +1,6 @@
-export const CLINIC_TIMEZONE = "America/Denver";
-export const CLINIC_TIMEZONE_LABEL = "Mountain Time";
-export const CLINIC_TIMEZONE_ABBR = "MT";
+export const CLINIC_TIMEZONE = "America/New_York";
+export const CLINIC_TIMEZONE_LABEL = "Eastern Time";
+export const CLINIC_TIMEZONE_ABBR = "ET";
 
 function toDate(iso: string | Date): Date {
   return typeof iso === "string" ? new Date(iso) : iso;
@@ -36,7 +36,7 @@ export function formatDateTimeInClinic(iso: string | Date): string {
   }).format(toDate(iso));
 }
 
-/** "April 27, 2026 at 9:00 AM (MT)" */
+/** "April 27, 2026 at 9:00 AM (ET)" */
 export function formatLongDateTimeInClinic(iso: string | Date): string {
   return `${new Intl.DateTimeFormat("en-US", {
     timeZone: CLINIC_TIMEZONE,
@@ -103,15 +103,15 @@ export function clinicMinute(iso: string | Date): number {
   return Number.isFinite(n) ? n : 0;
 }
 
-/** Signed GMT offset hours for Denver (e.g. -6 MDT, -7 MST). */
+/** Signed GMT offset hours for clinic timezone (e.g. -4 EDT, -5 EST). */
 export function clinicGmtOffset(iso: string | Date = new Date()): number {
   const d = toDate(iso);
   const p = partsFor(d, { hour: "numeric", hour12: false });
-  const denverHour = Number(p.hour ?? "0");
+  const clinicHourValue = Number(p.hour ?? "0");
   const utcHour = d.getUTCHours();
   const utcMinute = d.getUTCMinutes();
-  const denverMinute = Number(partsFor(d, { minute: "numeric" }).minute ?? "0");
-  let diffMinutes = (denverHour * 60 + denverMinute) - (utcHour * 60 + utcMinute);
+  const clinicMinuteValue = Number(partsFor(d, { minute: "numeric" }).minute ?? "0");
+  let diffMinutes = (clinicHourValue * 60 + clinicMinuteValue) - (utcHour * 60 + utcMinute);
   if (diffMinutes > 12 * 60) diffMinutes -= 24 * 60;
   if (diffMinutes < -12 * 60) diffMinutes += 24 * 60;
   return Math.round(diffMinutes / 60);
