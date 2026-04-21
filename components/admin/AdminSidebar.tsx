@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Activity, CalendarDays, LayoutDashboard, LogOut, Users } from "lucide-react";
+import { Activity, CalendarDays, Clock3, LayoutDashboard, LogOut, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,7 @@ const links = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
   { href: "/admin/patients", label: "Patients", icon: Users },
   { href: "/admin/bookings", label: "Bookings", icon: CalendarDays },
+  { href: "/admin/availability", label: "Availability", icon: Clock3 },
 ];
 
 export function AdminSidebar() {
