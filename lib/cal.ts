@@ -255,3 +255,15 @@ export async function declineCalBooking(uid: string, reason: string): Promise<Re
   );
 }
 
+/** POST /v2/bookings/{uid}/cancel with `{ cancellationReason }`. */
+export async function cancelCalBooking(uid: string, cancellationReason: string): Promise<Record<string, unknown>> {
+  if (!uid) throw new Error("Booking UID is required");
+  const headers = calHeaders("2026-02-25");
+  if (!headers) throw new Error("CAL_API_KEY is not set");
+  return postWithIpv4Fallback(
+    `${CAL_API_BASE}/v2/bookings/${encodeURIComponent(uid)}/cancel`,
+    headers,
+    { cancellationReason: cancellationReason || "Cancelled by admin" }
+  );
+}
+

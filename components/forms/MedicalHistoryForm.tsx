@@ -76,6 +76,7 @@ export function MedicalHistoryForm() {
     resolver: zodResolver(medicalHistoryFormSchema),
     defaultValues: {
       patient_name: "",
+      clinic_name: "",
       date_of_birth: "",
       address: "",
       cell_number: "",
@@ -170,11 +171,18 @@ export function MedicalHistoryForm() {
             description="Foundational information for your electronic health record."
           />
           <div className="grid gap-4 md:grid-cols-2">
-            <div className="md:col-span-2 space-y-2">
+            <div className="space-y-2">
               <Label htmlFor="patient_name">Patient Name</Label>
               <Input id="patient_name" {...form.register("patient_name")} />
               {form.formState.errors.patient_name && (
                 <p className="text-sm text-destructive">{form.formState.errors.patient_name.message}</p>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="clinic_name">Clinic Name</Label>
+              <Input id="clinic_name" {...form.register("clinic_name")} />
+              {form.formState.errors.clinic_name && (
+                <p className="text-sm text-destructive">{form.formState.errors.clinic_name.message}</p>
               )}
             </div>
             <div className="space-y-2">

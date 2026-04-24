@@ -49,6 +49,7 @@ type Booking = {
 
 type Medical = {
   patient_name?: string;
+  clinic_name?: string | null;
   date_of_birth?: string;
   address?: string;
   cell_number?: string;
@@ -312,6 +313,7 @@ export function PatientDetailDrawer({
               </div>
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
                 <Field label="Patient Name" value={mh?.patient_name} />
+                <Field label="Clinic Name" value={mh?.clinic_name} />
                 <Field
                   label="Date of Birth"
                   value={mh?.date_of_birth ? format(parseISO(mh.date_of_birth), "PP") : null}

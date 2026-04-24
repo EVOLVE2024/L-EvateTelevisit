@@ -3,6 +3,7 @@ import type { MedicalHistoryFormValues } from "@/lib/schemas/medicalHistory";
 /** medical_history row → react-hook-form values. */
 export function medicalHistoryRowToFormValues(row: {
   patient_name: string;
+  clinic_name: string | null;
   date_of_birth: string;
   address: string;
   cell_number: string;
@@ -26,6 +27,7 @@ export function medicalHistoryRowToFormValues(row: {
 }): MedicalHistoryFormValues {
   return {
     patient_name: row.patient_name,
+    clinic_name: row.clinic_name ?? "",
     date_of_birth: row.date_of_birth?.slice(0, 10) ?? "",
     address: row.address,
     cell_number: row.cell_number,

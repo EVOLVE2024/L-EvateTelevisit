@@ -2,6 +2,7 @@ import { z } from "zod";
 
 export const medicalHistorySchema = z.object({
   patient_name: z.string().min(1, "Required"),
+  clinic_name: z.string().min(1, "Required"),
   date_of_birth: z.string().min(1, "Required"),
   address: z.string().min(1, "Required"),
   cell_number: z.string().min(1, "Required"),

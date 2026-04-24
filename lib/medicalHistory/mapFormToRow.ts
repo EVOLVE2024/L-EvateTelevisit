@@ -4,6 +4,7 @@ export function medicalHistoryFormToDbRow(patientId: string, values: MedicalHist
   return {
     patient_id: patientId,
     patient_name: values.patient_name,
+    clinic_name: values.clinic_name,
     date_of_birth: values.date_of_birth,
     address: values.address,
     cell_number: values.cell_number,

@@ -173,11 +173,13 @@ export function BookingDetailDrawer({
                 </div>
               </div>
 
-              {booking.status === "pending" && booking.uid && (
+              {(booking.status === "pending" || booking.status === "confirmed") && booking.uid && (
                 <div className="mt-4 flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50/60 p-3">
                   <AlertTriangle className="h-4 w-4 shrink-0 text-amber-700" />
                   <div className="min-w-0 flex-1 text-xs text-amber-900">
-                    This booking is awaiting your confirmation.
+                    {booking.status === "pending"
+                      ? "This booking is awaiting your confirmation."
+                      : "This confirmed booking can be cancelled if needed."}
                   </div>
                   <BookingActions
                     uid={booking.uid}

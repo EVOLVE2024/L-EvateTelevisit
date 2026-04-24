@@ -375,7 +375,7 @@ export function BookingsList() {
                         className="flex items-center justify-end gap-2"
                         onClick={(e) => e.stopPropagation()}
                       >
-                        {r.status === "pending" ? (
+                        {r.status === "pending" || r.status === "confirmed" ? (
                           <BookingActions
                             uid={r.uid}
                             status={r.status}
