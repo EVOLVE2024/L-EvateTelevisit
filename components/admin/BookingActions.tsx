@@ -27,8 +27,9 @@ export function BookingActions({
   onCompleted?: (r: BookingActionResult) => void;
 }) {
   const [busy, setBusy] = useState<"confirm" | "decline" | "cancel" | null>(null);
-  const isPending = status === "pending";
-  const isConfirmed = status === "confirmed";
+  const normalizedStatus = status.toLowerCase();
+  const isPending = normalizedStatus === "pending";
+  const isConfirmed = normalizedStatus === "confirmed";
 
   if (!uid) return null;
   if (!isPending && !isConfirmed) return null;
@@ -78,54 +79,57 @@ export function BookingActions({
       className={cn("inline-flex items-center gap-2", className)}
       onClick={(e) => e.stopPropagation()}
     >
-      <Button
-        type="button"
-        variant="default"
-        size={size}
-        disabled={busy !== null}
-        onClick={() => void run("confirm")}
-        className="gap-1"
-        hidden={!isPending}
-      >
-        {busy === "confirm" ? (
-          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-        ) : (
-          <Check className="h-3.5 w-3.5" />
-        )}
-        Confirm
-      </Button>
-      <Button
-        type="button"
-        variant="outline"
-        size={size}
-        disabled={busy !== null}
-        onClick={() => void run("decline")}
-        className="gap-1 border-rose-200 text-rose-700 hover:bg-rose-50"
-        hidden={!isPending}
-      >
-        {busy === "decline" ? (
-          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-        ) : (
-          <X className="h-3.5 w-3.5" />
-        )}
-        Decline
-      </Button>
-      <Button
-        type="button"
-        variant="outline"
-        size={size}
-        disabled={busy !== null}
-        onClick={() => void run("cancel")}
-        className="gap-1 border-rose-200 text-rose-700 hover:bg-rose-50"
-        hidden={!isConfirmed}
-      >
-        {busy === "cancel" ? (
-          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-        ) : (
-          <X className="h-3.5 w-3.5" />
-        )}
-        Cancel
-      </Button>
+      {isPending && (
+        <>
+          <Button
+            type="button"
+            variant="default"
+            size={size}
+            disabled={busy !== null}
+            onClick={() => void run("confirm")}
+            className="gap-1"
+          >
+            {busy === "confirm" ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Check className="h-3.5 w-3.5" />
+            )}
+            Confirm
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size={size}
+            disabled={busy !== null}
+            onClick={() => void run("decline")}
+            className="gap-1 border-rose-200 text-rose-700 hover:bg-rose-50"
+          >
+            {busy === "decline" ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <X className="h-3.5 w-3.5" />
+            )}
+            Decline
+          </Button>
+        </>
+      )}
+      {isConfirmed && (
+        <Button
+          type="button"
+          variant="outline"
+          size={size}
+          disabled={busy !== null}
+          onClick={() => void run("cancel")}
+          className="gap-1 border-rose-200 text-rose-700 hover:bg-rose-50"
+        >
+          {busy === "cancel" ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <X className="h-3.5 w-3.5" />
+          )}
+          Cancel
+        </Button>
+      )}
     </div>
   );
 }

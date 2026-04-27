@@ -299,6 +299,8 @@ export function BookingsList() {
               {rows.map((r) => {
                 const name = r.attendee_name ?? "Unknown";
                 const day = r.start ? format(parseISO(r.start), "EEE, MMM d") : "—";
+                const isActionableStatus =
+                  r.status.toLowerCase() === "pending" || r.status.toLowerCase() === "confirmed";
                 return (
                   <TableRow
                     key={r.id}
@@ -375,7 +377,7 @@ export function BookingsList() {
                         className="flex items-center justify-end gap-2"
                         onClick={(e) => e.stopPropagation()}
                       >
-                        {r.status === "pending" || r.status === "confirmed" ? (
+                        {isActionableStatus ? (
                           <BookingActions
                             uid={r.uid}
                             status={r.status}

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { listCalBookings } from "@/lib/calBookings";
+import { listAllCalBookings } from "@/lib/calBookings";
 import { createServiceClient } from "@/lib/supabase/service";
 
 export const runtime = "nodejs";
@@ -24,12 +24,34 @@ export async function GET(req: NextRequest) {
 
     const email = mh.email as string;
 
-    const [upcoming, past] = await Promise.all([
-      listCalBookings({ attendeeEmail: email, status: "upcoming", sortStart: "asc", take: 50 }),
-      listCalBookings({ attendeeEmail: email, status: "past", sortStart: "desc", take: 50 }),
+    const normalizedPatientId = patientId.trim().toLowerCase();
+    const [upcomingAll, pastAll] = await Promise.all([
+      listAllCalBookings(
+        { attendeeEmail: email, status: "upcoming", sortStart: "asc" },
+        { pageSize: 100, maxPages: 10 }
+      ),
+      listAllCalBookings(
+        { attendeeEmail: email, status: "past", sortStart: "desc" },
+        { pageSize: 100, maxPages: 10 }
+      ),
     ]);
 
-    const toItem = (b: (typeof upcoming.bookings)[number]) => ({
+    const onlyPatientBookings = <
+      T extends {
+        supabasePatientId: string | null;
+      }
+    >(
+      bookings: T[]
+    ) =>
+      bookings.filter((booking) => {
+        const bookingPatientId = booking.supabasePatientId?.trim().toLowerCase();
+        return bookingPatientId === normalizedPatientId;
+      });
+
+    const upcoming = onlyPatientBookings(upcomingAll).slice(0, 50);
+    const past = onlyPatientBookings(pastAll).slice(0, 50);
+
+    const toItem = (b: (typeof upcoming)[number]) => ({
       uid: b.uid,
       title: b.title,
       status: b.status,
@@ -37,12 +59,13 @@ export async function GET(req: NextRequest) {
       end: b.end,
       duration: b.duration,
       meetingUrl: b.meetingUrl,
+      rescheduleUrl: b.rescheduleUrl,
       hostName: b.hosts[0]?.name ?? null,
     });
 
     return NextResponse.json({
-      upcoming: upcoming.bookings.map(toItem),
-      past: past.bookings.map(toItem),
+      upcoming: upcoming.map(toItem),
+      past: past.map(toItem),
     });
   } catch (e) {
     console.error("[patient/bookings]", e);

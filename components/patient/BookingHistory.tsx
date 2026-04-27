@@ -13,6 +13,7 @@ type BookingItem = {
   end: string;
   duration: number | null;
   meetingUrl: string | null;
+  rescheduleUrl: string | null;
   hostName: string | null;
 };
 
@@ -82,15 +83,29 @@ function BookingCard({ booking, isPast }: { booking: BookingItem; isPast: boolea
         )}
       </div>
 
-      {booking.meetingUrl && !isPast && booking.status === "confirmed" && (
-        <a
-          href={booking.meetingUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex shrink-0 items-center gap-1.5 self-start rounded-full bg-[#0a51b7] px-5 py-2 text-sm font-semibold text-white shadow-[0_6px_16px_-8px_rgba(10,81,183,0.6)] transition hover:bg-[#08499f]"
-        >
-          Join Session <ExternalLink className="h-3.5 w-3.5" />
-        </a>
+      {!isPast && (
+        <div className="flex shrink-0 items-center gap-2 self-start">
+          {booking.rescheduleUrl && (booking.status === "confirmed" || booking.status === "pending") && (
+            <a
+              href={booking.rescheduleUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 rounded-full border border-[#b8cdea] bg-white px-4 py-2 text-sm font-semibold text-[#0a51b7] transition hover:bg-[#f2f7ff]"
+            >
+              Reschedule <ExternalLink className="h-3.5 w-3.5" />
+            </a>
+          )}
+          {booking.meetingUrl && booking.status === "confirmed" && (
+            <a
+              href={booking.meetingUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 rounded-full bg-[#0a51b7] px-5 py-2 text-sm font-semibold text-white shadow-[0_6px_16px_-8px_rgba(10,81,183,0.6)] transition hover:bg-[#08499f]"
+            >
+              Join Session <ExternalLink className="h-3.5 w-3.5" />
+            </a>
+          )}
+        </div>
       )}
     </div>
   );

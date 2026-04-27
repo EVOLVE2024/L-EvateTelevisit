@@ -24,6 +24,7 @@ export type CalBooking = {
   end: string;
   duration: number | null;
   meetingUrl: string | null;
+  rescheduleUrl: string | null;
   location: string | null;
   createdAt: string | null;
   updatedAt: string | null;
@@ -66,6 +67,7 @@ export type CalBookingListResult = {
 };
 
 const CAL_API_BASE = "https://api.cal.com";
+const CAL_BOOKER_BASE = process.env.CAL_BOOKER_BASE_URL?.trim() || "https://app.cal.com";
 // Matches the `BookingOutput_2024_08_13` schema.
 const CAL_API_VERSION = "2024-08-13";
 const DEFAULT_TAKE = 100;
@@ -185,15 +187,23 @@ function mapBooking(raw: Record<string, unknown>): CalBooking {
   const attendeesRaw = Array.isArray(raw.attendees) ? (raw.attendees as Record<string, unknown>[]) : [];
   const hostsRaw = Array.isArray(raw.hosts) ? (raw.hosts as Record<string, unknown>[]) : [];
 
+  const bookingUid = str(raw.uid);
+  const explicitRescheduleUrl =
+    str(raw.rescheduleUrl) ??
+    str(raw.reschedulingUrl) ??
+    str(raw.rescheduleLink) ??
+    str(raw.reschedulingLink);
+
   return {
     id: (raw.id as number | string | undefined) ?? null,
-    uid: str(raw.uid),
+    uid: bookingUid,
     title: str(raw.title),
     status: normalizeStatus(raw.status),
     start: String(raw.start ?? raw.startTime ?? ""),
     end: String(raw.end ?? raw.endTime ?? ""),
     duration: num(raw.duration),
     meetingUrl: str(raw.meetingUrl),
+    rescheduleUrl: explicitRescheduleUrl ?? (bookingUid ? `${CAL_BOOKER_BASE}/reschedule/${bookingUid}` : null),
     location: str(raw.location),
     createdAt: str(raw.createdAt),
     updatedAt: str(raw.updatedAt),
